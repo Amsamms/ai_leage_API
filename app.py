@@ -283,7 +283,7 @@ def analyze_video_with_prompt(gemini_file_obj, skill_key_en, status_placeholder=
     return score
 
 def delete_gemini_file(gemini_file_obj, status_placeholder=st.empty()):
-    """Deletes the uploaded file from Gemini Cloud Storage."""app
+    """Deletes the uploaded file from Gemini Cloud Storage."""
     if not gemini_file_obj: return
     try:
         display_name = gemini_file_obj.display_name or gemini_file_obj.name
