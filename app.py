@@ -354,7 +354,7 @@ def plot_results(results):
     plt.tight_layout()
     return fig
 
-# =========== Streamlit App Layout (Arabic) ===================================
+# =========== Streamlit App Layout (Arabic) ====================================
 
 # Initialize session state
 if 'page' not in st.session_state: st.session_state.page = 'home'
