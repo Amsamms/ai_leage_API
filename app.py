@@ -62,19 +62,25 @@ def load_gemini_model():
             "temperature": 0.1, "top_p": 1, "top_k": 1,
             "max_output_tokens": 50,
         }
+
+        # --- WARNING: LOWEST SAFETY SETTINGS ---
+        # Use BLOCK_NONE cautiously, only for testing safe content.
+        # This minimizes blocking but increases risk of harmful content.
         safety_settings = [
-            {"category": c, "threshold": "BLOCK_MEDIUM_AND_ABOVE"} for c in [
-                "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
-                "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"
-            ]
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ]
+        # --- End of Warning Section ---
+
         model = genai.GenerativeModel(
-            model_name=MODEL_NAME,
+            model_name=MODEL_NAME, # Ensure MODEL_NAME is set correctly (e.g., "gemini-1.5-pro-latest")
             generation_config=generation_config,
             safety_settings=safety_settings
         )
-        logging.info(f"Gemini Model '{MODEL_NAME}' loaded.")
-        # st.success(f"✅ تم تحميل نموذج Gemini '{MODEL_NAME}'.") # Optional
+        logging.info(f"Gemini Model '{MODEL_NAME}' loaded with MINIMUM safety settings (BLOCK_NONE).")
+        # st.success(f"✅ تم تحميل نموذج Gemini '{MODEL_NAME}' بأقل إعدادات أمان.") # Optional
         return model
     except Exception as e:
         st.error(f"❗️ فشل تحميل نموذج Gemini '{MODEL_NAME}': {e}")
