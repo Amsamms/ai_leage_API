@@ -181,41 +181,91 @@ def upload_and_wait_gemini(video_path, display_name="video_upload", status_place
         return None
 
 def analyze_video_with_prompt(gemini_file_obj, skill_key_en, status_placeholder=st.empty()):
-    """Analyzes an ACTIVE video file object with a specific skill prompt."""
-    score = 0
+    """
+    Analyzes an ACTIVE video file object with a specific skill prompt,
+    handling potential empty or blocked responses gracefully.
+    """
+    score = 0 # Default score
     skill_name_ar = SKILLS_LABELS_AR.get(skill_key_en, skill_key_en) # For status message
     prompt = create_prompt_for_skill(skill_key_en)
     status_placeholder.info(f"🧠 جاري تحليل مهارة '{skill_name_ar}' بواسطة Gemini...")
     logging.info(f"Requesting analysis for skill '{skill_key_en}' using file {gemini_file_obj.name}")
 
     try:
+        # Make the API call to generate content
         response = model.generate_content([prompt, gemini_file_obj], request_options={"timeout": 120})
-        logging.debug(f"Gemini Raw Response for {skill_key_en}: {response.text}")
+        # Logging the raw response structure can be helpful for deep debugging if needed
+        # logging.debug(f"Gemini Raw Response object for {skill_key_en}: {response}")
 
-        if not response.parts:
-             st.warning(f"⚠️ استجابة Gemini فارغة أو محظورة لمهارة '{skill_name_ar}'. تم تعيين النتيجة إلى 0.")
-             logging.warning(f"Empty/Blocked response for {skill_key_en}, file {gemini_file_obj.name}")
-             score = 0
+        # --- Start of New Response Handling Logic ---
+
+        # 1. Check for safety blocks based on prompt feedback first
+        # Accessing prompt_feedback might itself raise an error if the response structure is unexpected,
+        # though less likely than accessing parts/text directly.
+        try:
+            if response.prompt_feedback.block_reason:
+                block_reason = response.prompt_feedback.block_reason
+                st.warning(f"⚠️ استجابة Gemini محظورة لمهارة '{skill_name_ar}' بسبب: {block_reason}. تم تعيين النتيجة إلى 0.")
+                logging.warning(f"Response blocked for {skill_key_en} due to prompt feedback: {block_reason}")
+                return 0 # Return 0 immediately if blocked by prompt feedback
+        except Exception as feedback_err:
+             st.warning(f"⚠️ خطأ في الوصول إلى ملاحظات الطلب (prompt_feedback) لـ '{skill_name_ar}': {feedback_err}. الافتراض بأن الاستجابة قد تكون فارغة.")
+             logging.warning(f"Error accessing prompt_feedback for {skill_key_en}: {feedback_err}. Assuming empty/invalid response.")
+             # Proceed to check candidates as a fallback
+
+        # 2. Check if the candidates list is actually present and non-empty
+        if not response.candidates:
+             st.warning(f"⚠️ استجابة Gemini فارغة (لا توجد مرشحات) لمهارة '{skill_name_ar}'. تم تعيين النتيجة إلى 0.")
+             logging.warning(f"Response candidates list is empty for {skill_key_en}, file {gemini_file_obj.name}")
+             score = 0 # Set score to 0
+
+        # 3. If candidates exist, attempt to parse the content
         else:
-            raw_score_text = response.text.strip()
-            # Try to extract the first number found
-            import re
-            match = re.search(r'\d+', raw_score_text)
-            if match:
-                score = int(match.group(0))
-                score = max(0, min(MAX_SCORE_PER_SKILL, score)) # Clamp score
-                status_placeholder.success(f"✅ اكتمل تحليل '{skill_name_ar}'. النص الخام: '{raw_score_text}', النتيجة: {score}")
-                logging.info(f"Analysis for {skill_key_en} successful. Raw: '{raw_score_text}', Score: {score}")
-            else:
-                 st.warning(f"⚠️ لم يتم العثور على رقم في استجابة Gemini لمهارة '{skill_name_ar}' ('{raw_score_text}'). تم تعيين النتيجة إلى 0.")
-                 logging.warning(f"Could not parse score for {skill_key_en} from text: '{raw_score_text}'")
+            try:
+                # It should now be safer to access .text (which relies on parts)
+                raw_score_text = response.text.strip()
+                logging.info(f"Gemini Raw Response Text for {skill_key_en}: '{raw_score_text}'") # Log the text we'll parse
+
+                # Use regex to find the first sequence of digits in the response
+                import re
+                match = re.search(r'\d+', raw_score_text)
+                if match:
+                    score = int(match.group(0))
+                    # Clamp the score to be within the valid range
+                    score = max(0, min(MAX_SCORE_PER_SKILL, score))
+                    status_placeholder.success(f"✅ اكتمل تحليل '{skill_name_ar}'. النص الخام: '{raw_score_text}', النتيجة: {score}")
+                    logging.info(f"Analysis for {skill_key_en} successful. Raw: '{raw_score_text}', Score: {score}")
+                else:
+                     # Handle case where text exists but contains no digits
+                     st.warning(f"⚠️ لم يتم العثور على رقم في استجابة Gemini لمهارة '{skill_name_ar}' ('{raw_score_text}'). تم تعيين النتيجة إلى 0.")
+                     logging.warning(f"Could not parse score for {skill_key_en} from text: '{raw_score_text}' - no digits found.")
+                     score = 0
+
+            except ValueError as e_parse: # Catches error if .text fails or int() conversion fails
+                 candidate_text_fallback = "N/A"
+                 try: # Try to get fallback text safely
+                     if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                         candidate_text_fallback = response.candidates[0].content.parts[0].text
+                 except Exception: pass # Ignore errors getting fallback text
+
+                 st.warning(f"⚠️ لم نتمكن من تحليل النتيجة من استجابة Gemini لمهارة '{skill_name_ar}'. الخطأ: {e_parse}. النص التقريبي: '{candidate_text_fallback}'. تم تعيين النتيجة إلى 0.")
+                 logging.warning(f"Could not parse score for {skill_key_en}. Access/Parse Error: {e_parse}. Candidates info: {response.candidates}")
+                 score = 0
+            except Exception as e_generic_parse: # Catch other unexpected parsing errors
+                 st.error(f"⚠️ خطأ غير متوقع أثناء تحليل استجابة Gemini لـ '{skill_name_ar}': {e_generic_parse}. تم تعيين النتيجة إلى 0.")
+                 logging.error(f"Unexpected parsing error for {skill_key_en}: {e_generic_parse}", exc_info=True)
                  score = 0
 
+        # --- End of New Response Handling Logic ---
+
+    # --- Outer Exception Handling for API Call Issues ---
     except genai.types.generation_types.BlockedPromptException as bpe:
+         # This catches blocks identified *during* the API call itself
          st.error(f"❌ تم حظر الطلب بواسطة إعدادات الأمان لمهارة '{skill_name_ar}': {bpe}")
-         logging.error(f"Prompt blocked for {skill_key_en}: {bpe}")
+         logging.error(f"Prompt blocked during API call for {skill_key_en}: {bpe}")
          score = 0
     except genai.types.generation_types.StopCandidateException as sce:
+         # This catches cases where generation stopped unexpectedly (e.g., safety)
          st.error(f"❌ توقف التحليل بشكل غير متوقع لمهارة '{skill_name_ar}' (أمان/سياسة): {sce}")
          logging.error(f"Analysis stopped (safety/policy) for {skill_key_en}: {sce}")
          score = 0
@@ -224,14 +274,16 @@ def analyze_video_with_prompt(gemini_file_obj, skill_key_en, status_placeholder=
          logging.error(f"Timeout during generation for {skill_key_en}: {te}")
          score = 0
     except Exception as e:
+        # Catch-all for other potential errors during the API call or initial response handling
         st.error(f"❌ حدث خطأ أثناء تحليل Gemini لمهارة '{skill_name_ar}': {e}")
         logging.error(f"Gemini analysis failed for {skill_key_en}: {e}", exc_info=True)
-        score = 0
+        score = 0 # Ensure score is 0 on any failure
 
+    # Return the determined score (0 if any error occurred or parsing failed)
     return score
 
 def delete_gemini_file(gemini_file_obj, status_placeholder=st.empty()):
-    """Deletes the uploaded file from Gemini Cloud Storage."""
+    """Deletes the uploaded file from Gemini Cloud Storage."""app
     if not gemini_file_obj: return
     try:
         display_name = gemini_file_obj.display_name or gemini_file_obj.name
