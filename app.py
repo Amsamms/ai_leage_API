@@ -694,3 +694,20 @@ elif st.session_state.page == 'الشخص_المناسب':
 # --- Footer ---
 st.markdown("---")
 st.caption("AI League - Scout Eye v1.1 (Gemini Powered - عربي) | بدعم من Google Gemini API")
+
+def test_gemini_connection():
+    """Test basic Gemini API connectivity with a simple text prompt."""
+    try:
+        test_prompt = "Please respond with the number 5 to test API connectivity."
+        test_response = model.generate_content(test_prompt)
+        st.success(f"✅ Gemini API test successful. Response: {test_response.text}")
+        logging.info(f"API test successful. Raw response: {test_response}")
+        return True
+    except Exception as e:
+        st.error(f"❌ Gemini API test failed: {e}")
+        logging.error(f"API test failed: {e}", exc_info=True)
+        return False
+
+# Call this early in your app
+if st.button("Test API Connection"):
+    test_result = test_gemini_connection()
