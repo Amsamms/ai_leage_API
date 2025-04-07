@@ -33,7 +33,7 @@ SKILLS_LABELS_AR = {
     "Zigzag": "المراوغة (زجزاج)"
 }
 MAX_SCORE_PER_SKILL = 5
-MODEL_NAME = "gemini-2.5-pro-preview-03-25"
+MODEL_NAME = "models/gemini-1.5-pro"
 
 # Analysis Modes (Arabic)
 MODE_MULTI_VIDEO_AR = "تقييم جميع المهارات الخمس (5 فيديوهات منفصلة)"
