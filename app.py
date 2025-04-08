@@ -117,7 +117,7 @@ MODE_SINGLE_VIDEO_ONE_SKILL_AR = "تقييم مهارة محددة (فيديو �
 
 # --- Gemini API Configuration ---
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
+    api_key = "AIzaSyAtJ-N39Wtxh54l5J0ZwLjhxvIEBiSPrig"
     genai.configure(api_key=api_key)
     logging.info("Gemini API Key loaded successfully.")
 except KeyError:
