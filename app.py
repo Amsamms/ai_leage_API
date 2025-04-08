@@ -646,31 +646,36 @@ def clear_page_specific_state():
          st.session_state.gemini_file_object = None
 
 
-# --- Top Row: Logo ---
-col1, col_mid, col2 = st.columns([1, 3, 1])
-with col1:
-    st.image("ai_league_logo.png", width=80)
+# --- Page config, CSS, etc. is still above here ---
 
-# --- Center Area: Main Logo, Title, Slogan ---
-st.container()
-st.markdown("<h1 style='text-align: center; color: white; margin-top: 20px;'>Scout Eye</h1>", unsafe_allow_html=True)
-st.markdown("<div class='title-text'>عين الكشاف</div>", unsafe_allow_html=True)
-st.markdown("<div class='slogan-text'>نكتشف ، نحمي ، ندعم</div>", unsafe_allow_html=True)
+# 1) Top row: AI League logo on the left
+# 1) Top row: AI League logo on the left (adjust widths as needed)
+col_left, col_mid, col_right = st.columns([1,3,1])
+with col_left:
+    # Make sure the file "ai_league_logo.png" is in the same folder or fix path
+    st.image("ai_league_logo.png", width=240)
 
-# --- Bottom Area: Clickable Options (Arabic) ---
-st.container()
-col_b1, col_b2, col_b3 = st.columns(3)
-button_keys = ["btn_person", "btn_star", "btn_legend"]
+# 2) Center the Scout Eye logo and titles
+col_empty1, col_scout_eye, col_empty2 = st.columns([1,2,1])
+with col_scout_eye:
+    # Make sure "scout_eye_logo.png" is in the same folder or fix path
+    st.image("scout_eye_logo.png", width=700)
 
-if col_b1.button("✔️ الشخص المناسب", key=button_keys[0]):
-    if st.session_state.page != PAGE_PERSON: clear_page_specific_state()
-    st.session_state.page = PAGE_PERSON
-if col_b2.button("⭐ نجم لا يغيب", key=button_keys[1]):
-    if st.session_state.page != PAGE_STAR: clear_page_specific_state()
-    st.session_state.page = PAGE_STAR
-if col_b3.button("⚽ إسطورة الغد", key=button_keys[2]):
-    if st.session_state.page != PAGE_LEGEND: clear_page_specific_state()
-    st.session_state.page = PAGE_LEGEND
+
+# 3) Center the three main buttons
+col_b1, col_b2, col_b3 = st.columns([1,2,1])
+with col_b2:
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("✔️ الشخص المناسب", key="btn_person"):
+            st.session_state.page = PAGE_PERSON
+    with c2:
+        if st.button("⭐ نجم لا يغيب", key="btn_star"):
+            st.session_state.page = PAGE_STAR
+    with c3:
+        if st.button("⚽ إسطورة الغد", key="btn_legend"):
+            st.session_state.page = PAGE_LEGEND
+
 
 # --- Conditional Page Content ---
 
