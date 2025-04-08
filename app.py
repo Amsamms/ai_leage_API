@@ -129,8 +129,12 @@ except Exception as e:
     st.stop()
 
 # --- Gemini Model Setup ---
+if "model_name" not in st.session_state:
+    # Default to your usual model name, e.g. "models/gemini-1.5-pro"
+    st.session_state.model_name = "models/gemini-1.5-pro"
+    
 @st.cache_resource
-def load_gemini_model():
+def load_gemini_model(model_name):
     """Loads the Gemini model with specific configurations."""
     try:
         # Increased output tokens for biomechanics list
@@ -148,7 +152,7 @@ def load_gemini_model():
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ]
         model = genai.GenerativeModel(
-            model_name=MODEL_NAME,
+            model_name=model_name,
             generation_config=generation_config,
             safety_settings=safety_settings
         )
@@ -159,9 +163,34 @@ def load_gemini_model():
         logging.error(f"Gemini model loading failed: {e}")
         return None
 
-model = load_gemini_model()
+model = load_gemini_model(st.session_state.model_name)
 if not model:
     st.stop()
+    
+def test_gemini_connection(chosen_model=None):
+    """
+    Test basic Gemini API connectivity with a simple text prompt.
+    chosen_model can override the default if you want.
+    """
+    try:
+        # If you wanted to re-initialize the model with chosen_model:
+        # if chosen_model:
+        #     test_model = genai.GenerativeModel(model_name=chosen_model, ...)
+        # else:
+        #     test_model = model  # use your existing global 'model'
+
+        test_prompt = "Please respond with the number 5 to test API connectivity."
+        test_response = model.generate_content(test_prompt)
+
+        st.success(f"✅ Gemini API test successful. Response: {test_response.text}")
+        logging.info(f"API test successful. Raw response: {test_response}")
+        return True
+
+    except Exception as e:
+        st.error(f"❌ Gemini API test failed: {e}")
+        logging.error(f"API test failed: {e}", exc_info=True)
+        return False
+
 
 # --- CSS Styling (Remains the same) ---
 st.markdown("""
@@ -1063,3 +1092,40 @@ elif st.session_state.page == PAGE_PERSON:
 # --- Footer ---
 st.markdown("---")
 st.caption("AI League - Scout Eye v1.3 (Gemini Powered - عربي) | بدعم من Google Gemini API")
+
+
+
+# Put a small checkbox at the bottom-left
+col_left, col_spacer, col_right = st.columns([1,4,1])
+with col_left:
+    show_advanced = st.checkbox("Advanced Gemini Options")
+
+if show_advanced:
+    st.write("### Choose a Gemini Model")
+    gemini_models = [
+        "gemini-2.5-pro-preview-03-25",
+        "gemini-2.5-pro-exp-03-25",
+        "models/gemini-2.0-flash",
+        "models/gemini-2.0-flash-lite",
+        "models/gemini-1.5-pro",
+        "models/gemini-1.5-flash",
+        "models/gemini-1.5-flash-8b"
+    ]
+    # Default selected = st.session_state.model_name if it's in the list
+    default_index = gemini_models.index(st.session_state.model_name) \
+        if st.session_state.model_name in gemini_models else 0
+
+    chosen_model = st.selectbox(
+        "Select a Gemini Model:",
+        gemini_models,
+        index=default_index
+    )
+
+    # Optionally, a "Test" button if you want to test the currently loaded model first
+    if st.button("Test Current Model"):
+        test_gemini_connection()
+
+    # Button to *switch* the entire app to the newly chosen model
+    if st.button("Use This Model"):
+        st.session_state.model_name = chosen_model
+        st.experimental_rerun()  # force a reload so the new model is loaded
