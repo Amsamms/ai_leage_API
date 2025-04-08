@@ -968,13 +968,18 @@ elif st.session_state.page == PAGE_STAR:
             # Note: Cleanup handled implicitly
 
     # --- Display Biomechanics Results ---
+    # --- Display Biomechanics Results ---
     if st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
         st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
 
-        # Prepare data for display (using pandas DataFrame for nice table)
         display_data = []
+        # Pre-reshape Arabic strings that might appear as values
+        reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
+        possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
+        reshaped_risk_levels = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
+
         for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
              label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en)
              # Reshape Arabic label for display
@@ -982,24 +987,73 @@ elif st.session_state.page == PAGE_STAR:
                  reshaped_label = get_display(arabic_reshaper.reshape(label_ar))
              except Exception:
                  reshaped_label = label_ar # Fallback
+
              value = results_bio.get(key_en, NOT_CLEAR_AR) # Get value or default
-             display_data.append({"المقياس": reshaped_label, "القيمة المقدرة": value})
+
+             # --- Apply Reshaping/Bidi to Arabic VALUE strings ---
+             try:
+                 # Check if value is one of the known Arabic strings
+                 if value == NOT_CLEAR_AR:
+                     display_value = reshaped_not_clear
+                 elif value in reshaped_risk_levels:
+                     display_value = reshaped_risk_levels[value]
+                 # Check generally for Arabic characters if value is a string (optional, safer)
+                 # elif isinstance(value, str) and re.search(r'[\u0600-\u06FF]+', value):
+                 #    display_value = get_display(arabic_reshaper.reshape(value))
+                 else:
+                     # Assume it's a number or already formatted correctly
+                     display_value = value
+             except Exception as e_reshape_val:
+                  logging.warning(f"Could not reshape/process value '{value}': {e_reshape_val}")
+                  display_value = value # Fallback to original value
+
+             display_data.append({"المقياس": reshaped_label, "القيمة المقدرة": display_value}) # Use display_value
 
         df = pd.DataFrame(display_data)
 
         # Display as a styled table using markdown conversion and CSS
+        # The CSS already handles text alignment (`text-align: right !important;`)
+        # The reshaping above ensures the characters within the string are ordered correctly for RTL.
         st.markdown(df.to_html(escape=False, index=False, classes='dataframe'), unsafe_allow_html=True)
 
-        # Highlight Risk Level and Score separately if desired
-        risk_level = results_bio.get("Risk_Level", NOT_CLEAR_AR)
-        risk_score = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-
+        # --- Display Risk Level and Score Metrics (with reshaped labels and values) ---
         st.write("") # Add some space
+
+        # Get raw values first
+        risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
+        risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
+
+        # Reshape risk level value if it's Arabic text
+        try:
+            if risk_level_raw == NOT_CLEAR_AR:
+                risk_level_display = reshaped_not_clear
+            elif risk_level_raw in reshaped_risk_levels:
+                risk_level_display = reshaped_risk_levels[risk_level_raw]
+            # Add general check if needed
+            # elif isinstance(risk_level_raw, str) and re.search(r'[\u0600-\u06FF]+', risk_level_raw):
+            #     risk_level_display = get_display(arabic_reshaper.reshape(risk_level_raw))
+            else:
+                risk_level_display = risk_level_raw
+        except Exception:
+            risk_level_display = risk_level_raw # Fallback
+
+        # Risk score is likely numeric, no reshaping needed for value usually
+        risk_score_display = risk_score_raw
+
+        # Reshape the METRIC LABELS
+        try:
+             risk_level_metric_label = get_display(arabic_reshaper.reshape("⚠️ مستوى الخطورة"))
+             risk_score_metric_label = get_display(arabic_reshaper.reshape("🔢 درجة الخطورة"))
+        except Exception:
+             risk_level_metric_label = "⚠️ مستوى الخطورة"
+             risk_score_metric_label = "🔢 درجة الخطورة"
+
+
         col_risk1, col_risk2 = st.columns(2)
         with col_risk1:
-             st.metric("⚠️ مستوى الخطورة", risk_level)
+             st.metric(risk_level_metric_label, risk_level_display)
         with col_risk2:
-             st.metric("🔢 درجة الخطورة", risk_score)
+             st.metric(risk_score_metric_label, risk_score_display)
 
 
 # ==================================
