@@ -970,6 +970,7 @@ elif st.session_state.page == PAGE_STAR:
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
+       # --- Display Biomechanics Results ---
     if st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
@@ -980,16 +981,11 @@ elif st.session_state.page == PAGE_STAR:
             reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
             possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
             reshaped_risk_levels_map = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
-            # Optional: Remove debug prints if they were correct
-            # st.write(f"DEBUG: Pre-reshaped 'غير واضح': -> {reshaped_not_clear} <-")
-            # st.write(f"DEBUG: Pre-reshaped 'منخفض': -> {reshaped_risk_levels_map.get('منخفض', 'ERROR')} <-")
         except Exception as e_pre_reshape:
              st.error(f"خطأ في تهيئة النصوص العربية: {e_pre_reshape}")
-             logging.error(f"Error pre-reshaping Arabic constants: {e_pre_reshape}", exc_info=True)
              reshaped_not_clear = NOT_CLEAR_AR
-             reshaped_risk_levels_map = {level: level for level in possible_risk_levels_ar} # Fallback
+             reshaped_risk_levels_map = {level: level for level in possible_risk_levels_ar}
 
-        # --- NO COLUMNS - Render Sequentially ---
         st.markdown("---") # Add a visual separator
 
         for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
@@ -1012,16 +1008,17 @@ elif st.session_state.page == PAGE_STAR:
             except Exception as e_reshape_val:
                   logging.error(f"Error reshaping value '{value_raw}' for key '{key_en}': {e_reshape_val}", exc_info=True)
 
-            # --- Display directly using st.markdown with explicit HTML dir attribute ---
-            # Using a simple paragraph tag
-            html_output_dir = f'<p style="margin-bottom: 0.2rem;" dir="rtl"><strong >{reshaped_label}:</strong> <span >{str(display_value)}</span></p>'
-            st.markdown(html_output_dir, unsafe_allow_html=True)
+            # --- !! RENDER LABEL AND VALUE SEPARATELY !! ---
+            # Render Label (forced RTL)
+            st.markdown(f'<p style="margin-bottom: 0rem; font-weight: bold;" dir="rtl">{reshaped_label}:</p>', unsafe_allow_html=True)
+            # Render Value (forced RTL on its own line)
+            st.markdown(f'<p style="margin-bottom: 0.5rem; margin-right: 15px;" dir="rtl">{str(display_value)}</p>', unsafe_allow_html=True)
+            # st.markdown("---") # Optional separator between items
 
-
-        # --- Display Risk Level and Score (Sequentially, NO columns) ---
+        # --- Display Risk Level and Score (Also Separately) ---
         st.markdown("---") # Divider before summary metrics
 
-        # (Keep the logic for getting/reshaping risk_level_display and risk_score_display)
+        # (Get/Reshape risk level/score values and labels as before)
         risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
         risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
         risk_level_display = str(risk_level_raw).strip().strip('\'"')
@@ -1039,12 +1036,12 @@ elif st.session_state.page == PAGE_STAR:
         except Exception:
              risk_level_metric_label = "⚠️ مستوى الخطورة"; risk_score_metric_label = "🔢 درجة الخطورة"
 
-        # Display risk/score using markdown HTML, no columns
-        html_risk_level = f'<p style="margin-bottom: 0.2rem; font-size: 1.1em;" dir="rtl"><strong >{risk_level_metric_label}:</strong> <span >{str(risk_level_display)}</span></p>'
-        st.markdown(html_risk_level, unsafe_allow_html=True)
+        # Display risk/score using separate markdown lines
+        st.markdown(f'<p style="margin-bottom: 0rem; font-weight: bold;" dir="rtl">{risk_level_metric_label}:</p>', unsafe_allow_html=True)
+        st.markdown(f'<p style="margin-bottom: 0.5rem; margin-right: 15px; font-size: 1.1em;" dir="rtl">{str(risk_level_display)}</p>', unsafe_allow_html=True)
 
-        html_risk_score = f'<p style="margin-bottom: 0.2rem; font-size: 1.1em;" dir="rtl"><strong >{risk_score_metric_label}:</strong> <span >{str(risk_score_display)}</span></p>'
-        st.markdown(html_risk_score, unsafe_allow_html=True)
+        st.markdown(f'<p style="margin-bottom: 0rem; font-weight: bold;" dir="rtl">{risk_score_metric_label}:</p>', unsafe_allow_html=True)
+        st.markdown(f'<p style="margin-bottom: 0.5rem; margin-right: 15px; font-size: 1.1em;" dir="rtl">{str(risk_score_display)}</p>', unsafe_allow_html=True)
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
