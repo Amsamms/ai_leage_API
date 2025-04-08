@@ -1000,77 +1000,100 @@ elif st.session_state.page == PAGE_STAR:
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results (Arabic Headers, English Data) ---
     # --- Display Biomechanics Results (Arabic Headers, English Table - LTR Order) ---
+       # --- Display Biomechanics Results (Arabic, Simple Markdown, Separate Lines) ---
     if 'biomechanics_results' in st.session_state and st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
 
-        # --- ARABIC HEADER ---
-        # Display header using simple markdown, relying on global CSS
+        # --- ARABIC HEADER (Simple Markdown) ---
         st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
         st.markdown("---") # Add a visual separator
 
-        # --- Prepare data for ENGLISH Table ---
-        table_data = []
+        # --- Pre-reshape known Arabic text values ---
+        try:
+            reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
+            possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
+            reshaped_risk_levels_map = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
+        except Exception as e_pre_reshape:
+             st.error(f"خطأ في تهيئة النصوص العربية الثابتة: {e_pre_reshape}")
+             logging.error(f"Error pre-reshaping Arabic constants: {e_pre_reshape}", exc_info=True)
+             reshaped_not_clear = NOT_CLEAR_AR
+             reshaped_risk_levels_map = {level: level for level in possible_risk_levels_ar}
+
+        # --- Display metric data using simple st.markdown on separate lines ---
         for key_en in BIOMECHANICS_METRICS_EN: # Iterate using the defined English keys order
 
-            # Get ENGLISH Label using the English keys
-            display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Fallback to key if label missing
+            # Get ARABIC Label
+            label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en) # Use Arabic labels dict
 
-            # Get raw value from results (which might be Arabic text or number)
-            # Use NOT_CLEAR_AR as the default only if the key is missing entirely from results_bio
+            # Get raw value (potentially numeric or Arabic text)
             value_raw = results_bio.get(key_en, NOT_CLEAR_AR)
-            # Clean the raw value (convert to string, strip whitespace and quotes)
-            value_str = str(value_raw).strip().strip('\'"')
+            value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
 
-            # --- Translate known ARABIC text values (received from Gemini) to ENGLISH ---
-            # Use the cleaned value_str for lookup in the AR_TO_EN map
-            # If value_str is not in the map (e.g., it's a number), use value_str itself
-            display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
+            # --- Reshape ARABIC Label ---
+            try:
+                # Add bold markdown to the label string before reshaping
+                reshaped_label = get_display(arabic_reshaper.reshape(f"**{label_ar}:**"))
+            except Exception as e_reshape_lbl:
+                 logging.warning(f"Could not reshape label '{label_ar}': {e_reshape_lbl}")
+                 reshaped_label = f"**{label_ar}:**" # Fallback (keep bold)
 
-            # Append data for the table row in LTR order (Metric Name, Value)
-            table_data.append({"Metric": display_label_en, "Estimated Value": display_value_en})
+            # --- Reshape ARABIC Value (if applicable) ---
+            display_value = value_str # Default to the cleaned string value
+            try:
+                 # Check against original Arabic keys in the map
+                 if value_str == NOT_CLEAR_AR:
+                     display_value = reshaped_not_clear
+                 elif value_str in reshaped_risk_levels_map:
+                     display_value = reshaped_risk_levels_map[value_str]
+                 # Check for other unmapped Arabic strings
+                 elif re.search(r'[\u0600-\u06FF]+', value_str):
+                     display_value = get_display(arabic_reshaper.reshape(value_str))
+                 # Else: It's likely numeric, display_value remains value_str
 
-        # --- Create and Display Pandas DataFrame as HTML Table ---
-        if table_data:
-            # Create DataFrame
-            df_en = pd.DataFrame(table_data)
+            except Exception as e_reshape_val:
+                  logging.error(f"Error reshaping/processing value '{value_raw}' for key '{key_en}': {e_reshape_val}", exc_info=True)
 
-            # Ensure column order is correct for LTR display (Metric Name | Value)
-            # This might be redundant if dict key order is preserved, but explicit is safer.
-            df_en = df_en[["Metric", "Estimated Value"]]
+            # --- Display Label and Value on SEPARATE lines using st.markdown ---
+            # Render the reshaped label (already includes bold markdown)
+            st.markdown(reshaped_label)
+            # Render the reshaped value (as string). Add slight indent via spaces? Or rely on default block behavior.
+            # Adding non-breaking spaces for indent:   
+            st.markdown(f"  {str(display_value)}", unsafe_allow_html=True) # Use unsafe_allow_html for  
 
-            # Convert DataFrame to HTML using the custom CSS class 'dataframe_en'
-            # Apply LTR direction explicitly to the table via CSS class in style block
-            html_table = df_en.to_html(escape=False, index=False, classes='dataframe_en', border=0)
+            # Add extra vertical space if desired
+            st.write("") # Adds a blank line
 
-            # Render the HTML table using st.markdown
-            st.markdown(html_table, unsafe_allow_html=True)
-        else:
-            # Display a message if no data was processed
-            st.warning("No biomechanics data available to display.")
 
-        # --- Optional: Separate Risk Metrics Display (Commented Out) ---
-        # If you want to display Risk Level/Score separately below the table:
+        # --- Optional: Separate Risk Metrics Display (using separate lines) ---
+        # If you uncomment this, ensure risk level/score values and labels are reshaped correctly
         # st.markdown("---")
         # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
-        # risk_level_str = str(risk_level_raw).strip().strip('\'"')
-        # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
-
         # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
+        # risk_level_display = str(risk_level_raw).strip().strip('\'"')
+        # risk_score_display = str(risk_score_raw).strip().strip('\'"')
+        # try: # Reshape Value
+        #     risk_level_str = str(risk_level_raw).strip().strip('\'"')
+        #     if risk_level_str == NOT_CLEAR_AR: risk_level_display = reshaped_not_clear
+        #     elif risk_level_str in reshaped_risk_levels_map: risk_level_display = reshaped_risk_levels_map[risk_level_str]
+        #     elif re.search(r'[\u0600-\u06FF]+', risk_level_str): risk_level_display = get_display(arabic_reshaper.reshape(risk_level_str))
+        # except Exception as e_metric_reshape: logging.error(f"Error reshaping metric value '{risk_level_raw}': {e_metric_reshape}")
+        # try: # Reshape Label
+        #      risk_level_metric_label_str = f"**{arabic_reshaper.reshape('⚠️ مستوى الخطورة:')}**" # Add bold/colon before reshaping
+        #      risk_level_metric_label = get_display(risk_level_metric_label_str)
+        #      risk_score_metric_label_str = f"**{arabic_reshaper.reshape('🔢 درجة الخطورة:')}**" # Add bold/colon before reshaping
+        #      risk_score_metric_label = get_display(risk_score_metric_label_str)
+        # except Exception: risk_level_metric_label = "**⚠️ مستوى الخطورة:**"; risk_score_metric_label = "**🔢 درجة الخطورة:**"
 
-        # col_risk1, col_risk2 = st.columns(2)
-        # with col_risk1:
-        #     # Use English labels for metric display
-        #     st.metric("⚠️ Risk Level", risk_level_display_en)
-        # with col_risk2:
-        #     st.metric("🔢 Risk Score", risk_score_display_en)
+        # st.markdown(risk_level_metric_label)
+        # st.markdown(f"  {str(risk_level_display)}", unsafe_allow_html=True)
+        # st.write("")
+        # st.markdown(risk_score_metric_label)
+        # st.markdown(f"  {str(risk_score_display)}", unsafe_allow_html=True)
 
-    # Add handling if results are None (e.g., analysis failed or not run)
+
     elif 'biomechanics_results' in st.session_state and st.session_state.biomechanics_results is None:
-         # You might want a placeholder message if analysis was attempted but failed
-         # Or just show nothing if results are None
-         pass # Or st.info("Run biomechanics analysis to see results.")
+         pass # Or st.info("Run analysis for results.")
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
