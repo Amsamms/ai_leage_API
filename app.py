@@ -999,52 +999,78 @@ elif st.session_state.page == PAGE_STAR:
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results (Arabic Headers, English Data) ---
-        # --- Display Biomechanics Results (Arabic Headers, English Table) ---
-    if st.session_state.biomechanics_results:
+    # --- Display Biomechanics Results (Arabic Headers, English Table - LTR Order) ---
+    if 'biomechanics_results' in st.session_state and st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
-        # --- KEEP ARABIC HEADER ---
+
+        # --- ARABIC HEADER ---
+        # Display header using simple markdown, relying on global CSS
         st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
         st.markdown("---") # Add a visual separator
 
-        # --- Prepare data for English Table ---
+        # --- Prepare data for ENGLISH Table ---
         table_data = []
-        for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
+        for key_en in BIOMECHANICS_METRICS_EN: # Iterate using the defined English keys order
 
-            # Get ENGLISH Label
-            display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Use English labels dict
+            # Get ENGLISH Label using the English keys
+            display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Fallback to key if label missing
 
-            # Get raw value (potentially numeric or Arabic text)
+            # Get raw value from results (which might be Arabic text or number)
+            # Use NOT_CLEAR_AR as the default only if the key is missing entirely from results_bio
             value_raw = results_bio.get(key_en, NOT_CLEAR_AR)
-            value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
+            # Clean the raw value (convert to string, strip whitespace and quotes)
+            value_str = str(value_raw).strip().strip('\'"')
 
-            # --- Translate known Arabic text values to ENGLISH ---
+            # --- Translate known ARABIC text values (received from Gemini) to ENGLISH ---
+            # Use the cleaned value_str for lookup in the AR_TO_EN map
+            # If value_str is not in the map (e.g., it's a number), use value_str itself
             display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
 
-            # Append data for the table row
+            # Append data for the table row in LTR order (Metric Name, Value)
             table_data.append({"Metric": display_label_en, "Estimated Value": display_value_en})
 
         # --- Create and Display Pandas DataFrame as HTML Table ---
         if table_data:
+            # Create DataFrame
             df_en = pd.DataFrame(table_data)
+
+            # Ensure column order is correct for LTR display (Metric Name | Value)
+            # This might be redundant if dict key order is preserved, but explicit is safer.
+            df_en = df_en[["Metric", "Estimated Value"]]
+
             # Convert DataFrame to HTML using the custom CSS class 'dataframe_en'
+            # Apply LTR direction explicitly to the table via CSS class in style block
             html_table = df_en.to_html(escape=False, index=False, classes='dataframe_en', border=0)
+
+            # Render the HTML table using st.markdown
             st.markdown(html_table, unsafe_allow_html=True)
         else:
+            # Display a message if no data was processed
             st.warning("No biomechanics data available to display.")
 
-        # --- Optional: Separate Metrics for Risk (Commented Out) ---
+        # --- Optional: Separate Risk Metrics Display (Commented Out) ---
+        # If you want to display Risk Level/Score separately below the table:
         # st.markdown("---")
         # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
         # risk_level_str = str(risk_level_raw).strip().strip('\'"')
         # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
+
         # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"')
+        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
+
         # col_risk1, col_risk2 = st.columns(2)
         # with col_risk1:
+        #     # Use English labels for metric display
         #     st.metric("⚠️ Risk Level", risk_level_display_en)
         # with col_risk2:
         #     st.metric("🔢 Risk Score", risk_score_display_en)
+
+    # Add handling if results are None (e.g., analysis failed or not run)
+    elif 'biomechanics_results' in st.session_state and st.session_state.biomechanics_results is None:
+         # You might want a placeholder message if analysis was attempted but failed
+         # Or just show nothing if results are None
+         pass # Or st.info("Run biomechanics analysis to see results.")
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
