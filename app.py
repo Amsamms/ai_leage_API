@@ -999,50 +999,51 @@ elif st.session_state.page == PAGE_STAR:
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results (Arabic Headers, English Data) ---
+        # --- Display Biomechanics Results (Arabic Headers, English Table) ---
     if st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
         # --- KEEP ARABIC HEADER ---
-        # --- KEEP ARABIC HEADER ---
-        # Use simple markdown - rely on global CSS for direction and font
         st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
-
         st.markdown("---") # Add a visual separator
 
-        # --- Display metric data in ENGLISH using st.write ---
+        # --- Prepare data for English Table ---
+        table_data = []
         for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
 
             # Get ENGLISH Label
             display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Use English labels dict
 
-            # Get raw value (potentially numeric or Arabic text like 'غير واضح', 'منخفض')
-            value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Default to original Arabic constant if key missing
+            # Get raw value (potentially numeric or Arabic text)
+            value_raw = results_bio.get(key_en, NOT_CLEAR_AR)
             value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
 
-            # --- Translate known Arabic text values to ENGLISH for display ---
+            # --- Translate known Arabic text values to ENGLISH ---
             display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
-            # If value_str wasn't in the map (e.g., it's a number or unexpected text),
-            # display_value_en will remain as the original cleaned value_str.
 
-            # --- Display using simple st.write (LTR formatting is default/fine for English) ---
-            # Use markdown for bolding the label
-            st.write(f"**{display_label_en}:** {display_value_en}")
+            # Append data for the table row
+            table_data.append({"Metric": display_label_en, "Estimated Value": display_value_en})
 
-        # --- Display Risk Level and Score (Optionally, using st.metric with English Labels) ---
-        # st.markdown("---") # Optional separator
+        # --- Create and Display Pandas DataFrame as HTML Table ---
+        if table_data:
+            df_en = pd.DataFrame(table_data)
+            # Convert DataFrame to HTML using the custom CSS class 'dataframe_en'
+            html_table = df_en.to_html(escape=False, index=False, classes='dataframe_en', border=0)
+            st.markdown(html_table, unsafe_allow_html=True)
+        else:
+            st.warning("No biomechanics data available to display.")
+
+        # --- Optional: Separate Metrics for Risk (Commented Out) ---
+        # st.markdown("---")
         # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
         # risk_level_str = str(risk_level_raw).strip().strip('\'"')
         # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
-
         # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
-
+        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"')
         # col_risk1, col_risk2 = st.columns(2)
         # with col_risk1:
-        #     # Use English label for metric
         #     st.metric("⚠️ Risk Level", risk_level_display_en)
         # with col_risk2:
-        #      # Use English label for metric
         #     st.metric("🔢 Risk Score", risk_score_display_en)
 
 # ==================================
