@@ -79,6 +79,31 @@ BIOMECHANICS_LABELS_AR = {
     "Risk_Level": "مستوى الخطورة",
     "Risk_Score": "درجة الخطورة"
 }
+# --- Biomechanics Metrics (English Labels for Star page Display) ---
+BIOMECHANICS_LABELS_EN = {
+    "Right_Knee_Angle_Avg": "Right Knee Angle Avg (°)",
+    "Left_Knee_Angle_Avg": "Left Knee Angle Avg (°)",
+    "Asymmetry_Avg_Percent": "Asymmetry Avg (%)",
+    "Contact_Angle_Avg": "Contact Angle Avg (°)",
+    "Max_Acceleration": "Max Acceleration (Relative)",
+    "Steps_Count": "Steps Count",
+    "Step_Frequency": "Step Frequency (steps/sec)",
+    "Hip_Flexion_Avg": "Hip Flexion Avg (°)",
+    "Trunk_Lean_Avg": "Trunk Lean Avg (°)",
+    "Pelvic_Tilt_Avg": "Pelvic Tilt Avg (°)",
+    "Thorax_Rotation_Avg": "Thorax Rotation Avg (°)",
+    "Risk_Level": "Risk Level",
+    "Risk_Score": "Risk Score"
+}
+NOT_CLEAR_EN = "Not Clear"
+# Mapping from potential Arabic values received from Gemini to English display values
+BIO_VALUE_MAP_AR_TO_EN = {
+    'غير واضح': NOT_CLEAR_EN,
+    'منخفض': 'Low',
+    'متوسط': 'Medium',
+    'مرتفع': 'High'
+    # Add any other potential Arabic text values Gemini might return here
+}
 # Placeholder for non-detected values
 NOT_CLEAR_AR = "غير واضح"
 
@@ -973,101 +998,56 @@ elif st.session_state.page == PAGE_STAR:
        # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
-if st.session_state.biomechanics_results:
-    results_bio = st.session_state.biomechanics_results
-    st.markdown("---")
-    # Use markdown with dir="rtl" for the header itself
-    st.markdown("<h3 dir='rtl'>📊 نتائج التحليل البيوميكانيكي 📊</h3>", unsafe_allow_html=True)
-
-    # --- Pre-reshape constants (Keep error handling) ---
-    try:
-        reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
-        possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
-        reshaped_risk_levels_map = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
-    except Exception as e_pre_reshape:
-         st.error(f"خطأ في تهيئة النصوص العربية: {e_pre_reshape}")
-         reshaped_not_clear = NOT_CLEAR_AR
-         reshaped_risk_levels_map = {level: level for level in possible_risk_levels_ar}
-
-    st.markdown("---") # Add a visual separator
-
-    # MODIFIED SECTION - Display each metric with proper RTL support
-    for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
-        label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en)
-        value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Get raw value
-        value_str = str(value_raw).strip().strip('\'"') # Clean value
-
-        # Process the label and value
+    # --- Display Biomechanics Results (Arabic Headers, English Data) ---
+    if st.session_state.biomechanics_results:
+        results_bio = st.session_state.biomechanics_results
+        st.markdown("---")
+        # --- KEEP ARABIC HEADER ---
+        # Reshape the header for correct display
         try:
-            # Reshape the label
-            reshaped_label = arabic_reshaper.reshape(label_ar)
-            
-            # Process the value based on its content
-            if value_str == NOT_CLEAR_AR:
-                reshaped_value = arabic_reshaper.reshape(NOT_CLEAR_AR)
-            elif value_str in possible_risk_levels_ar:
-                reshaped_value = arabic_reshaper.reshape(value_str)
-            elif re.search(r'[\u0600-\u06FF]+', value_str):
-                reshaped_value = arabic_reshaper.reshape(value_str)
-            else:
-                reshaped_value = value_str  # Non-Arabic values don't need reshaping
-                
-            # Create properly formatted HTML with RTL direction
-            display_html = f'<div dir="rtl" style="text-align: right;">{get_display(reshaped_label)}: {get_display(reshaped_value)}</div>'
-            st.markdown(display_html, unsafe_allow_html=True)
-            
+            results_header_reshaped = get_display(arabic_reshaper.reshape("📊 نتائج التحليل البيوميكانيكي 📊"))
+            st.markdown(f"<h3 dir='rtl'>{results_header_reshaped}</h3>", unsafe_allow_html=True)
         except Exception as e:
-            # Fallback if reshaping fails
-            st.write(f"{label_ar}: {value_str}")
-            logging.error(f"Error reshaping for key '{key_en}': {e}", exc_info=True)
-        
-        # Add spacing
-        st.write("")
+            logging.error(f"Failed to reshape results header: {e}")
+            st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊") # Fallback
 
-    # --- Display Risk Level and Score with the same approach ---
-    st.markdown("---") # Divider before summary metrics
+        st.markdown("---") # Add a visual separator
 
-    # Risk level
-    try:
-        risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
-        risk_level_str = str(risk_level_raw).strip().strip('\'"')
-        risk_level_label = arabic_reshaper.reshape("⚠️ مستوى الخطورة")
-        
-        # Process risk level value
-        if risk_level_str == NOT_CLEAR_AR:
-            risk_level_value = arabic_reshaper.reshape(NOT_CLEAR_AR)
-        elif risk_level_str in possible_risk_levels_ar:
-            risk_level_value = arabic_reshaper.reshape(risk_level_str)
-        elif re.search(r'[\u0600-\u06FF]+', risk_level_str):
-            risk_level_value = arabic_reshaper.reshape(risk_level_str)
-        else:
-            risk_level_value = risk_level_str
-            
-        # Display with RTL support
-        st.markdown(
-            f'<div dir="rtl" style="text-align: right;">{get_display(risk_level_label)}: {get_display(risk_level_value)}</div>',
-            unsafe_allow_html=True
-        )
-        st.write("")
-    except Exception as e_risk:
-        st.write(f"⚠️ مستوى الخطورة: {risk_level_raw}")
-        logging.error(f"Error displaying risk level: {e_risk}", exc_info=True)
+        # --- Display metric data in ENGLISH using st.write ---
+        for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
 
-    # Risk score
-    try:
-        risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        risk_score_str = str(risk_score_raw).strip().strip('\'"')
-        risk_score_label = arabic_reshaper.reshape("🔢 درجة الخطورة")
-        
-        # Display with RTL support
-        st.markdown(
-            f'<div dir="rtl" style="text-align: right;">{get_display(risk_score_label)}: {risk_score_str}</div>',
-            unsafe_allow_html=True
-        )
-        st.write("")
-    except Exception as e_score:
-        st.write(f"🔢 درجة الخطورة: {risk_score_raw}")
-        logging.error(f"Error displaying risk score: {e_score}", exc_info=True)
+            # Get ENGLISH Label
+            display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Use English labels dict
+
+            # Get raw value (potentially numeric or Arabic text like 'غير واضح', 'منخفض')
+            value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Default to original Arabic constant if key missing
+            value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
+
+            # --- Translate known Arabic text values to ENGLISH for display ---
+            display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
+            # If value_str wasn't in the map (e.g., it's a number or unexpected text),
+            # display_value_en will remain as the original cleaned value_str.
+
+            # --- Display using simple st.write (LTR formatting is default/fine for English) ---
+            # Use markdown for bolding the label
+            st.write(f"**{display_label_en}:** {display_value_en}")
+
+        # --- Display Risk Level and Score (Optionally, using st.metric with English Labels) ---
+        # st.markdown("---") # Optional separator
+        # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
+        # risk_level_str = str(risk_level_raw).strip().strip('\'"')
+        # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
+
+        # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
+        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
+
+        # col_risk1, col_risk2 = st.columns(2)
+        # with col_risk1:
+        #     # Use English label for metric
+        #     st.metric("⚠️ Risk Level", risk_level_display_en)
+        # with col_risk2:
+        #      # Use English label for metric
+        #     st.metric("🔢 Risk Score", risk_score_display_en)
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
