@@ -968,82 +968,83 @@ elif st.session_state.page == PAGE_STAR:
             # Note: Cleanup handled implicitly
 
     # --- Display Biomechanics Results ---
+    # --- Display Biomechanics Results ---
     if st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
         st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
 
-        display_data = []
         # Pre-reshape Arabic strings that might appear as values
-        reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
-        possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
-        # Ensure the keys in reshaped_risk_levels match exactly what Gemini might return
-        reshaped_risk_levels = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
-        # Add lower/upper case variations if Gemini is inconsistent (less likely for Arabic)
-        # reshaped_risk_levels.update({level.lower(): get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar})
+        try:
+            reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
+            possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
+            reshaped_risk_levels = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
+            logging.debug(f"Pre-reshaped 'Not Clear': {reshaped_not_clear}")
+            logging.debug(f"Pre-reshaped Risk Levels: {reshaped_risk_levels}")
+        except Exception as e_pre_reshape:
+             st.error(f"خطأ في تهيئة النصوص العربية: {e_pre_reshape}")
+             logging.error(f"Error pre-reshaping Arabic constants: {e_pre_reshape}", exc_info=True)
+             # Provide non-reshaped fallbacks if pre-reshaping fails
+             reshaped_not_clear = NOT_CLEAR_AR
+             reshaped_risk_levels = {level: level for level in possible_risk_levels_ar}
 
-        logging.debug(f"Pre-reshaped 'Not Clear': {reshaped_not_clear}")
-        logging.debug(f"Pre-reshaped Risk Levels: {reshaped_risk_levels}")
 
-        for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
-             label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en)
-             # Reshape Arabic label for display
-             try:
+        # Use columns for better layout if many metrics
+        col_left, col_right = st.columns(2)
+        metrics_count = len(BIOMECHANICS_METRICS_EN)
+        mid_point = (metrics_count + 1) // 2 # Split point for columns
+
+        current_col = col_left # Start with the left column
+
+        for i, key_en in enumerate(BIOMECHANICS_METRICS_EN): # Iterate in defined order
+
+            if i >= mid_point:
+                current_col = col_right # Switch to right column
+
+            # --- Get and Reshape Label ---
+            label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en)
+            try:
                  reshaped_label = get_display(arabic_reshaper.reshape(label_ar))
-             except Exception as e_reshape_lbl:
+            except Exception as e_reshape_lbl:
                  logging.warning(f"Could not reshape label '{label_ar}': {e_reshape_lbl}")
                  reshaped_label = label_ar # Fallback
 
-             value = results_bio.get(key_en, NOT_CLEAR_AR) # Get value or default
-             logging.debug(f"Processing metric: {key_en}, Raw value from Gemini: '{value}' (Type: {type(value)})")
+            # --- Get and Reshape Value (if Arabic text) ---
+            value_raw = results_bio.get(key_en, NOT_CLEAR_AR)
+            logging.debug(f"Processing metric: {key_en}, Raw value: '{value_raw}' (Type: {type(value_raw)})")
+            display_value = str(value_raw) # Default to string representation
 
-             # --- Apply Reshaping/Bidi to Arabic VALUE strings ---
-             display_value = value # Default to raw value
-             try:
-                 # Ensure value is treated as string for comparison
-                 value_str = str(value).strip()
-
+            try:
+                 value_str = str(value_raw).strip()
                  if value_str == NOT_CLEAR_AR:
                      display_value = reshaped_not_clear
                      logging.debug(f"Value matched NOT_CLEAR_AR. Using reshaped: {display_value}")
-                 # Check against the original Arabic keys of reshaped_risk_levels
-                 elif value_str in reshaped_risk_levels:
+                 elif value_str in reshaped_risk_levels: # Check against original Arabic keys
                      display_value = reshaped_risk_levels[value_str]
                      logging.debug(f"Value matched risk level '{value_str}'. Using reshaped: {display_value}")
-                 # Add a general check for any Arabic string - might be needed if Gemini returns unexpected phrases
                  elif isinstance(value_str, str) and re.search(r'[\u0600-\u06FF]+', value_str):
-                    logging.debug(f"Value '{value_str}' contains Arabic, attempting reshape.")
-                    display_value = get_display(arabic_reshaper.reshape(value_str))
-                    logging.debug(f"Reshaped general Arabic string to: {display_value}")
+                     logging.debug(f"Value '{value_str}' contains Arabic (and not pre-matched), attempting reshape.")
+                     display_value = get_display(arabic_reshaper.reshape(value_str))
+                     logging.debug(f"Reshaped general Arabic string to: {display_value}")
+                 # Else: display_value remains the original string (likely numeric)
 
-                 # If display_value is still the original AND it was an Arabic string, log it
-                 elif display_value == value and isinstance(value_str, str) and re.search(r'[\u0600-\u06FF]+', value_str):
-                      logging.warning(f"Arabic value '{value_str}' was not matched for specific reshaping.")
+            except Exception as e_reshape_val:
+                  logging.error(f"Error reshaping/processing value '{value_raw}': {e_reshape_val}", exc_info=True)
+                  # Keep display_value as the original string representation in case of error
 
-             except Exception as e_reshape_val:
-                  logging.error(f"Error during reshaping/processing value '{value}': {e_reshape_val}", exc_info=True)
-                  # Keep display_value as the original value in case of error
-
-             # Ensure final display_value is a string for the DataFrame
-             display_data.append({"المقياس": str(reshaped_label), "القيمة المقدرة": str(display_value)})
-
-        # Create DataFrame with explicitly string types might help
-        df = pd.DataFrame(display_data).astype(str)
-        logging.debug(f"DataFrame head:\n{df.head().to_string()}") # Log DF content
-
-        # --- Render using st.dataframe ---
-        # This uses Streamlit's native table component.
-        # It might handle RTL rendering within cells better.
-        # We lose the custom CSS styling easily, but prioritize correct rendering.
-        st.dataframe(df, use_container_width=True) # Use container width for better layout
+            # --- Display using st.write with Markdown ---
+            # Use markdown for bold label and clear separation. Ensure strings are passed.
+            current_col.write(f"**{reshaped_label}:** {display_value}")
+            # Add a small divider or extra space if needed between items
+            # current_col.write("---") # Optional divider
 
         # --- Display Risk Level and Score Metrics (Keep previous reshaping logic here) ---
-        st.write("") # Add some space
+        st.markdown("---") # Divider before summary metrics
 
         risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
         risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        risk_level_display = risk_level_raw # Default
-        risk_score_display = risk_score_raw # Default
+        risk_level_display = str(risk_level_raw) # Default
+        risk_score_display = str(risk_score_raw) # Default
 
         # Reshape risk level value if it's Arabic text
         try:
@@ -1056,7 +1057,6 @@ elif st.session_state.page == PAGE_STAR:
                  risk_level_display = get_display(arabic_reshaper.reshape(risk_level_str))
         except Exception as e_metric_reshape:
             logging.error(f"Error reshaping metric value '{risk_level_raw}': {e_metric_reshape}")
-            # Keep default display value
 
         # Reshape the METRIC LABELS
         try:
@@ -1068,11 +1068,9 @@ elif st.session_state.page == PAGE_STAR:
 
         col_risk1, col_risk2 = st.columns(2)
         with col_risk1:
-             # Ensure the value passed to metric is a string
-             st.metric(risk_level_metric_label, str(risk_level_display))
+             st.metric(risk_level_metric_label, risk_level_display)
         with col_risk2:
-             # Ensure the value passed to metric is a string
-             st.metric(risk_score_metric_label, str(risk_score_display))
+             st.metric(risk_score_metric_label, risk_score_display)
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
