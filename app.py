@@ -999,51 +999,101 @@ elif st.session_state.page == PAGE_STAR:
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results (Arabic Headers, English Data) ---
-    if st.session_state.biomechanics_results:
+    # --- Display Biomechanics Results (Arabic Headers, English Table - LTR Order) ---
+       # --- Display Biomechanics Results (Arabic, Simple Markdown, Separate Lines) ---
+    if 'biomechanics_results' in st.session_state and st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
-        # --- KEEP ARABIC HEADER ---
-        # --- KEEP ARABIC HEADER ---
-        # Use simple markdown - rely on global CSS for direction and font
-        st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
 
+        # --- ARABIC HEADER (Simple Markdown) ---
+        st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
         st.markdown("---") # Add a visual separator
 
-        # --- Display metric data in ENGLISH using st.write ---
-        for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
+        # --- Pre-reshape known Arabic text values ---
+        try:
+            reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
+            possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
+            reshaped_risk_levels_map = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
+        except Exception as e_pre_reshape:
+             st.error(f"خطأ في تهيئة النصوص العربية الثابتة: {e_pre_reshape}")
+             logging.error(f"Error pre-reshaping Arabic constants: {e_pre_reshape}", exc_info=True)
+             reshaped_not_clear = NOT_CLEAR_AR
+             reshaped_risk_levels_map = {level: level for level in possible_risk_levels_ar}
 
-            # Get ENGLISH Label
-            display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Use English labels dict
+        # --- Display metric data using simple st.markdown on separate lines ---
+        for key_en in BIOMECHANICS_METRICS_EN: # Iterate using the defined English keys order
 
-            # Get raw value (potentially numeric or Arabic text like 'غير واضح', 'منخفض')
-            value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Default to original Arabic constant if key missing
+            # Get ARABIC Label
+            label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en) # Use Arabic labels dict
+
+            # Get raw value (potentially numeric or Arabic text)
+            value_raw = results_bio.get(key_en, NOT_CLEAR_AR)
             value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
 
-            # --- Translate known Arabic text values to ENGLISH for display ---
-            display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
-            # If value_str wasn't in the map (e.g., it's a number or unexpected text),
-            # display_value_en will remain as the original cleaned value_str.
+            # --- Reshape ARABIC Label ---
+            try:
+                # Add bold markdown to the label string before reshaping
+                reshaped_label = get_display(arabic_reshaper.reshape(f"**{label_ar}:**"))
+            except Exception as e_reshape_lbl:
+                 logging.warning(f"Could not reshape label '{label_ar}': {e_reshape_lbl}")
+                 reshaped_label = f"**{label_ar}:**" # Fallback (keep bold)
 
-            # --- Display using simple st.write (LTR formatting is default/fine for English) ---
-            # Use markdown for bolding the label
-            st.write(f"**{display_label_en}:** {display_value_en}")
+            # --- Reshape ARABIC Value (if applicable) ---
+            display_value = value_str # Default to the cleaned string value
+            try:
+                 # Check against original Arabic keys in the map
+                 if value_str == NOT_CLEAR_AR:
+                     display_value = reshaped_not_clear
+                 elif value_str in reshaped_risk_levels_map:
+                     display_value = reshaped_risk_levels_map[value_str]
+                 # Check for other unmapped Arabic strings
+                 elif re.search(r'[\u0600-\u06FF]+', value_str):
+                     display_value = get_display(arabic_reshaper.reshape(value_str))
+                 # Else: It's likely numeric, display_value remains value_str
 
-        # --- Display Risk Level and Score (Optionally, using st.metric with English Labels) ---
-        # st.markdown("---") # Optional separator
+            except Exception as e_reshape_val:
+                  logging.error(f"Error reshaping/processing value '{value_raw}' for key '{key_en}': {e_reshape_val}", exc_info=True)
+
+            # --- Display Label and Value on SEPARATE lines using st.markdown ---
+            # Render the reshaped label (already includes bold markdown)
+            st.markdown(reshaped_label)
+            # Render the reshaped value (as string). Add slight indent via spaces? Or rely on default block behavior.
+            # Adding non-breaking spaces for indent:   
+            st.markdown(f"  {str(display_value)}", unsafe_allow_html=True) # Use unsafe_allow_html for  
+
+            # Add extra vertical space if desired
+            st.write("") # Adds a blank line
+
+
+        # --- Optional: Separate Risk Metrics Display (using separate lines) ---
+        # If you uncomment this, ensure risk level/score values and labels are reshaped correctly
+        # st.markdown("---")
         # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
-        # risk_level_str = str(risk_level_raw).strip().strip('\'"')
-        # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
-
         # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
+        # risk_level_display = str(risk_level_raw).strip().strip('\'"')
+        # risk_score_display = str(risk_score_raw).strip().strip('\'"')
+        # try: # Reshape Value
+        #     risk_level_str = str(risk_level_raw).strip().strip('\'"')
+        #     if risk_level_str == NOT_CLEAR_AR: risk_level_display = reshaped_not_clear
+        #     elif risk_level_str in reshaped_risk_levels_map: risk_level_display = reshaped_risk_levels_map[risk_level_str]
+        #     elif re.search(r'[\u0600-\u06FF]+', risk_level_str): risk_level_display = get_display(arabic_reshaper.reshape(risk_level_str))
+        # except Exception as e_metric_reshape: logging.error(f"Error reshaping metric value '{risk_level_raw}': {e_metric_reshape}")
+        # try: # Reshape Label
+        #      risk_level_metric_label_str = f"**{arabic_reshaper.reshape('⚠️ مستوى الخطورة:')}**" # Add bold/colon before reshaping
+        #      risk_level_metric_label = get_display(risk_level_metric_label_str)
+        #      risk_score_metric_label_str = f"**{arabic_reshaper.reshape('🔢 درجة الخطورة:')}**" # Add bold/colon before reshaping
+        #      risk_score_metric_label = get_display(risk_score_metric_label_str)
+        # except Exception: risk_level_metric_label = "**⚠️ مستوى الخطورة:**"; risk_score_metric_label = "**🔢 درجة الخطورة:**"
 
-        # col_risk1, col_risk2 = st.columns(2)
-        # with col_risk1:
-        #     # Use English label for metric
-        #     st.metric("⚠️ Risk Level", risk_level_display_en)
-        # with col_risk2:
-        #      # Use English label for metric
-        #     st.metric("🔢 Risk Score", risk_score_display_en)
+        # st.markdown(risk_level_metric_label)
+        # st.markdown(f"  {str(risk_level_display)}", unsafe_allow_html=True)
+        # st.write("")
+        # st.markdown(risk_score_metric_label)
+        # st.markdown(f"  {str(risk_score_display)}", unsafe_allow_html=True)
+
+
+    elif 'biomechanics_results' in st.session_state and st.session_state.biomechanics_results is None:
+         pass # Or st.info("Run analysis for results.")
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
