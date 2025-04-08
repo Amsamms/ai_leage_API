@@ -649,7 +649,7 @@ def clear_page_specific_state():
 # --- Top Row: Logo ---
 col1, col_mid, col2 = st.columns([1, 3, 1])
 with col1:
-    st.markdown("<p style='font-size: 1.2em; font-weight: bold;'>AI LEAGUE</p>", unsafe_allow_html=True)
+    st.image("ai_league_logo.png", width=80)
 
 # --- Center Area: Main Logo, Title, Slogan ---
 st.container()
