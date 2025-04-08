@@ -1003,13 +1003,9 @@ elif st.session_state.page == PAGE_STAR:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
         # --- KEEP ARABIC HEADER ---
-        # Reshape the header for correct display
-        try:
-            results_header_reshaped = get_display(arabic_reshaper.reshape("📊 نتائج التحليل البيوميكانيكي 📊"))
-            st.markdown(f"<h3 dir='rtl'>{results_header_reshaped}</h3>", unsafe_allow_html=True)
-        except Exception as e:
-            logging.error(f"Failed to reshape results header: {e}")
-            st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊") # Fallback
+        # --- KEEP ARABIC HEADER ---
+        # Use simple markdown - rely on global CSS for direction and font
+        st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
 
         st.markdown("---") # Add a visual separator
 
