@@ -971,10 +971,12 @@ elif st.session_state.page == PAGE_STAR:
     # --- Display Biomechanics Results ---
     # --- Display Biomechanics Results ---
        # --- Display Biomechanics Results ---
+    # --- Display Biomechanics Results ---
     if st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
-        st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
+        # Use markdown with dir="rtl" for the header itself
+        st.markdown("<h3 dir='rtl'>📊 نتائج التحليل البيوميكانيكي 📊</h3>", unsafe_allow_html=True)
 
         # --- Pre-reshape constants (Keep error handling) ---
         try:
@@ -988,17 +990,21 @@ elif st.session_state.page == PAGE_STAR:
 
         st.markdown("---") # Add a visual separator
 
+        # Define Unicode control characters
+        RLO = '\u202E' # Right-to-Left Override
+        PDF = '\u202C' # Pop Directional Formatting
+
         for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
 
             label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en)
-            value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Get raw value from results dict
+            value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Get raw value
             value_str = str(value_raw).strip().strip('\'"') # Clean value
 
             # --- Reshape Label ---
             try: reshaped_label = get_display(arabic_reshaper.reshape(label_ar))
             except Exception: reshaped_label = label_ar
 
-            # --- Reshape Value (More Robust Logic) ---
+            # --- Reshape Value ---
             display_value = value_str # Start with the cleaned string value
             try:
                  if value_str == NOT_CLEAR_AR: display_value = reshaped_not_clear
@@ -1008,14 +1014,18 @@ elif st.session_state.page == PAGE_STAR:
             except Exception as e_reshape_val:
                   logging.error(f"Error reshaping value '{value_raw}' for key '{key_en}': {e_reshape_val}", exc_info=True)
 
-            # --- !! RENDER LABEL AND VALUE SEPARATELY !! ---
-            # Render Label (forced RTL)
-            st.markdown(f'<p style="margin-bottom: 0rem; font-weight: bold;" dir="rtl">{reshaped_label}:</p>', unsafe_allow_html=True)
-            # Render Value (forced RTL on its own line)
-            st.markdown(f'<p style="margin-bottom: 0.5rem; margin-right: 15px;" dir="rtl">{str(display_value)}</p>', unsafe_allow_html=True)
-            # st.markdown("---") # Optional separator between items
+            # --- Combine using Unicode Overrides and display with st.write ---
+            # Construct the final string with RLO forcing RTL for the whole line
+            # We still use the reshaped components
+            final_string = f"{RLO}{reshaped_label}: {str(display_value)}{PDF}"
 
-        # --- Display Risk Level and Score (Also Separately) ---
+            # Display using st.write - simplest rendering path
+            st.write(final_string)
+            # Add some spacing manually if needed
+            st.write("")
+
+
+        # --- Display Risk Level and Score (using same RLO technique) ---
         st.markdown("---") # Divider before summary metrics
 
         # (Get/Reshape risk level/score values and labels as before)
@@ -1036,12 +1046,14 @@ elif st.session_state.page == PAGE_STAR:
         except Exception:
              risk_level_metric_label = "⚠️ مستوى الخطورة"; risk_score_metric_label = "🔢 درجة الخطورة"
 
-        # Display risk/score using separate markdown lines
-        st.markdown(f'<p style="margin-bottom: 0rem; font-weight: bold;" dir="rtl">{risk_level_metric_label}:</p>', unsafe_allow_html=True)
-        st.markdown(f'<p style="margin-bottom: 0.5rem; margin-right: 15px; font-size: 1.1em;" dir="rtl">{str(risk_level_display)}</p>', unsafe_allow_html=True)
+        # Display risk/score using st.write and RLO
+        final_risk_level_str = f"{RLO}{risk_level_metric_label}: {str(risk_level_display)}{PDF}"
+        st.write(final_risk_level_str)
+        st.write("")
 
-        st.markdown(f'<p style="margin-bottom: 0rem; font-weight: bold;" dir="rtl">{risk_score_metric_label}:</p>', unsafe_allow_html=True)
-        st.markdown(f'<p style="margin-bottom: 0.5rem; margin-right: 15px; font-size: 1.1em;" dir="rtl">{str(risk_score_display)}</p>', unsafe_allow_html=True)
+        final_risk_score_str = f"{RLO}{risk_score_metric_label}: {str(risk_score_display)}{PDF}"
+        st.write(final_risk_score_str)
+        st.write("")
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
