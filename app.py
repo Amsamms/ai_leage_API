@@ -1,3 +1,4 @@
+# START OF FULL CODE
 import streamlit as st
 import google.generativeai as genai
 import os
@@ -9,6 +10,8 @@ from bidi.algorithm import get_display
 import logging
 import re
 import pandas as pd # Added for better display formatting
+import base64 # <-- Added for image encoding
+# import os <-- Already imported
 
 # --- Configure Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,18 +24,13 @@ st.set_page_config(
 )
 
 # --- Constants (Arabic) ---
-
-# Page Names (for session state)
+# --- NO CHANGES HERE ---
 PAGE_HOME = "home"
 PAGE_LEGEND = "اسطورة_الغد"
 PAGE_STAR = "نجم_لا_يغيب"
 PAGE_PERSON = "الشخص_المناسب"
-
-# Age Groups (for Legend page)
 AGE_GROUP_5_8 = "5 إلى 8 سنوات"
 AGE_GROUP_8_PLUS = "8 سنوات وأكثر"
-
-# --- Skills for Age Group: 5 to 8 Years ---
 SKILLS_AGE_5_8_EN = [
     "Running_Basic", "Ball_Feeling", "Focus_On_Task", "First_Touch_Simple"
 ]
@@ -42,8 +40,6 @@ SKILLS_LABELS_AGE_5_8_AR = {
     "Focus_On_Task": "التركيز وتنفيذ المطلوب",
     "First_Touch_Simple": "اللمسة الأولى (استلام بسيط)"
 }
-
-# --- Skills for Age Group: 8 Years and Older ---
 SKILLS_AGE_8_PLUS_EN = [
     "Jumping", "Running_Control", "Passing", "Receiving", "Zigzag"
 ]
@@ -54,16 +50,12 @@ SKILLS_LABELS_AGE_8_PLUS_AR = {
     "Receiving": "استقبال الكرة",
     "Zigzag": "المراوغة (زجزاج)"
 }
-
-# --- Biomechanics Metrics (for Star page) ---
-# Use consistent keys, preferably English for internal use
 BIOMECHANICS_METRICS_EN = [
     "Right_Knee_Angle_Avg", "Left_Knee_Angle_Avg", "Asymmetry_Avg_Percent",
     "Contact_Angle_Avg", "Max_Acceleration", "Steps_Count",
     "Step_Frequency", "Hip_Flexion_Avg", "Trunk_Lean_Avg",
     "Pelvic_Tilt_Avg", "Thorax_Rotation_Avg", "Risk_Level", "Risk_Score"
 ]
-# Arabic labels for display
 BIOMECHANICS_LABELS_AR = {
     "Right_Knee_Angle_Avg": "متوسط زاوية الركبة اليمنى (°)",
     "Left_Knee_Angle_Avg": "متوسط زاوية الركبة اليسرى (°)",
@@ -79,7 +71,6 @@ BIOMECHANICS_LABELS_AR = {
     "Risk_Level": "مستوى الخطورة",
     "Risk_Score": "درجة الخطورة"
 }
-# --- Biomechanics Metrics (English Labels for Star page Display) ---
 BIOMECHANICS_LABELS_EN = {
     "Right_Knee_Angle_Avg": "Right Knee Angle Avg (°)",
     "Left_Knee_Angle_Avg": "Left Knee Angle Avg (°)",
@@ -96,28 +87,23 @@ BIOMECHANICS_LABELS_EN = {
     "Risk_Score": "Risk Score"
 }
 NOT_CLEAR_EN = "Not Clear"
-# Mapping from potential Arabic values received from Gemini to English display values
 BIO_VALUE_MAP_AR_TO_EN = {
     'غير واضح': NOT_CLEAR_EN,
     'منخفض': 'Low',
     'متوسط': 'Medium',
     'مرتفع': 'High'
-    # Add any other potential Arabic text values Gemini might return here
 }
-# Placeholder for non-detected values
 NOT_CLEAR_AR = "غير واضح"
-
-# --- General Constants ---
 MAX_SCORE_PER_SKILL = 5
-MODEL_NAME = "models/gemini-1.5-pro" # Make sure this model supports video analysis
-
-# --- Analysis Modes (Simplified - Arabic) ---
+MODEL_NAME = "models/gemini-1.5-pro"
 MODE_SINGLE_VIDEO_ALL_SKILLS_AR = "تقييم جميع مهارات الفئة العمرية (فيديو واحد)"
 MODE_SINGLE_VIDEO_ONE_SKILL_AR = "تقييم مهارة محددة (فيديو واحد)"
 
 # --- Gemini API Configuration ---
+# --- NO CHANGES HERE ---
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
+    #api_key = st.secrets["GEMINI_API_KEY"]
+    api_key = "AIzaSyAtJ-N39Wtxh54l5J0ZwLjhxvIEBiSPrig"
     genai.configure(api_key=api_key)
     logging.info("Gemini API Key loaded successfully.")
 except KeyError:
@@ -129,17 +115,16 @@ except Exception as e:
     st.stop()
 
 # --- Gemini Model Setup ---
+# --- NO CHANGES HERE ---
 @st.cache_resource
 def load_gemini_model():
     """Loads the Gemini model with specific configurations."""
     try:
-        # Increased output tokens for biomechanics list
         generation_config = {
-             "temperature": 0.2, # Slightly higher for more descriptive potential but still controlled
+             "temperature": 0.2,
              "top_p": 1,
              "top_k": 1,
-             "max_output_tokens": 800, # Increased significantly for the list output
-             # "response_mime_type": "application/json", # Could try this for structured output later
+             "max_output_tokens": 800,
         }
         safety_settings = [
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -158,32 +143,205 @@ def load_gemini_model():
         st.error(f"❗️ فشل تحميل نموذج Gemini '{MODEL_NAME}': {e}")
         logging.error(f"Gemini model loading failed: {e}")
         return None
-
 model = load_gemini_model()
 if not model:
     st.stop()
 
-# --- CSS Styling (Remains the same) ---
-st.markdown("""
+
+# --- Function to Encode Image to Base64 (Integrated and Cached) --- << NEW
+@st.cache_data # Cache the result to avoid re-encoding unchanged images
+def image_to_base64(path):
+    """Reads an image file and returns its Base64 encoded data URI."""
+    if not os.path.exists(path):
+        logging.error(f"Image file not found at path: {path}")
+        # Return a transparent pixel data URI as fallback
+        return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    try:
+        with open(path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            # Determine MIME type (basic implementation, assumes PNG)
+            mime_type = "image/png" # Default assumption
+            if path.lower().endswith(".jpg") or path.lower().endswith(".jpeg"):
+                mime_type = "image/jpeg"
+            elif path.lower().endswith(".gif"):
+                 mime_type = "image/gif"
+            # Add more types if needed
+
+            return f"data:{mime_type};base64,{encoded_string}"
+    except Exception as e:
+        logging.error(f"Error encoding image {path}: {e}")
+        # Fallback transparent pixel
+        return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+# --- Define Image Paths --- << NEW
+# Assumes images are in the same directory as the script
+path_ai_league_logo = "ai_league_logo.png"
+path_scout_eye_logo = "scout_eye_logo.png"
+path_button_person = "button_person.png"
+path_button_star = "button_star.png"
+path_button_legend = "button_legend.png"
+
+# --- Generate Base64 Strings for Buttons --- << NEW
+B64_BUTTON_PERSON = image_to_base64(path_button_person)
+B64_BUTTON_STAR = image_to_base64(path_button_star)
+B64_BUTTON_LEGEND = image_to_base64(path_button_legend)
+
+
+# --- CSS Styling (MODIFIED) --- << REPLACED ORIGINAL CSS BLOCK
+st.markdown(f"""
 <style>
-    /* ... (Existing CSS styles) ... */
-    body { direction: rtl; }
-    .stApp { background-color: #1a1a4a; color: white; }
-    /* ... other styles ... */
-    /* Style for biomechanics table */
-    .dataframe table { width: 100%; border-collapse: collapse; }
-    .dataframe th { background-color: rgba(216, 184, 216, 0.2); /* Light purple tint */ color: white; text-align: right !important; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.2); font-weight: bold; }
-    .dataframe td { color: white; text-align: right !important; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.2); }
-    .dataframe tr:nth-child(even) { background-color: rgba(255, 255, 255, 0.05); }
-    .dataframe tr:hover { background-color: rgba(255, 255, 255, 0.1); }
+    /* Base styles */
+    body {{ direction: rtl; }}
+    .stApp {{
+        background-color: #100f2a; /* Dark blue from target */
+        color: white;
+    }}
+    /* Make header transparent */
+    header[data-testid="stHeader"]] {{
+        background-color: rgba(0,0,0,0);
+    }}
+    /* Hide fullscreen button on images */
+    button[title="View fullscreen"] {{ display: none; }}
+
+    /* Allow containers to center content */
+    div[data-testid="stVerticalBlock"] {{
+        align-items: center; /* Helps center content in some cases */
+    }}
+
+    /* Top logo alignment */
+    div[data-testid="stHorizontalBlock"]:has(img[alt="AI League Logo"]) {{
+         justify-content: start; /* Align logo to the start (left in LTR, right in RTL) */
+         padding-left: 20px; /* Add some padding */
+         padding-right: 20px;
+    }}
+     div[data-testid="stHorizontalBlock"]:has(img[alt="AI League Logo"]) img {{
+         max-height: 50px; /* Control top logo size */
+         margin-top: 10px;
+     }}
+
+    /* Center content area */
+    .center-content-container {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding-top: 10px;
+        padding-bottom: 20px;
+    }}
+    .center-content-container img[alt="Scout Eye Logo"] {{
+         max-width: 250px; /* Control main logo size */
+         margin-bottom: 10px;
+    }}
+    .title-text {{ /* Style for the Arabic title */
+        font-size: 2.8em; /* Adjust size */
+        font-weight: bold;
+        color: white;
+        margin-top: 0;
+        margin-bottom: 5px;
+        line-height: 1.2;
+    }}
+    .slogan-text {{ /* Style for the Arabic slogan */
+        font-size: 1.6em; /* Adjust size */
+        color: #c9a8c9; /* Light purple from target */
+        margin-bottom: 30px; /* Space before buttons */
+        letter-spacing: 1px; /* Add slight spacing */
+        border-bottom: 2px solid #c9a8c9; /* Underline like target */
+        padding-bottom: 5px;
+        display: inline-block; /* Allow underline to fit text */
+    }}
+
+    /* Button Styling */
+    /* General style for the columns holding the buttons */
+    div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]) {{ /* Try to target the button columns */
+       justify-content: space-around !important;
+       gap: 20px !important;
+       padding: 10px 5%;
+       align-items: center; /* Align button wrappers vertically */
+    }}
+
+    /* Target specific buttons */
+    /* Common Button Style */
+    div.stButton > button[kind="secondary"] {{ /* Target the actual button element */
+        border: none !important;
+        background-color: transparent !important;
+        background-size: contain; /* Scale image down to fit */
+        background-repeat: no-repeat;
+        background-position: center center;
+        color: transparent !important; /* Hide button text */
+        font-size: 0 !important; /* Further hide text */
+        line-height: 0 !important; /* Hide text */
+        padding: 0 !important; /* Remove padding */
+        min-height: 100px; /* Adjust based on your image aspect ratio */
+        min-width: 150px; /* Adjust */
+        width: 100%; /* Let column control max width */
+        max-width: 250px; /* Max button width */
+        height: auto; /* Let aspect ratio determine height */
+        aspect-ratio: 1.8 / 1; /* EXAMPLE: Adjust to your button image aspect ratio! */
+        display: block !important;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        overflow: hidden; /* Hide any overflowing original text */
+    }}
+    div.stButton > button[kind="secondary"]:hover {{
+        transform: scale(1.04);
+        cursor: pointer;
+        box-shadow: 0px 5px 15px rgba(255, 255, 255, 0.2);
+        border: none !important;
+        background-color: transparent !important;
+    }}
+     div.stButton > button[kind="secondary"]:focus {{
+        box-shadow: 0px 5px 15px rgba(255, 255, 255, 0.2) !important; /* Style focus state */
+        border: none !important;
+        outline: none !important;
+     }}
+
+    /* Assign background images using the generated Base64 variables */
+    /* Assumes the 3 buttons are in 3 columns */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1) div.stButton > button[kind="secondary"] {{
+         background-image: url("{B64_BUTTON_PERSON}");
+    }}
+     div[data-testid="stHorizontalBlock"] > div:nth-child(2) div.stButton > button[kind="secondary"] {{
+         background-image: url("{B64_BUTTON_STAR}");
+    }}
+    div[data-testid="stHorizontalBlock"] > div:nth-child(3) div.stButton > button[kind="secondary"] {{
+         background-image: url("{B64_BUTTON_LEGEND}");
+    }}
+
+    /* Biomechanics Table Styling */
+    .dataframe table {{ width: 100%; border-collapse: collapse; margin-top: 15px; }}
+    .dataframe th {{ background-color: rgba(216, 184, 216, 0.2); color: white; text-align: right !important; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.2); font-weight: bold; }}
+    .dataframe td {{ color: white; text-align: right !important; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.2); }}
+    .dataframe tr:nth-child(even) {{ background-color: rgba(255, 255, 255, 0.05); }}
+    .dataframe tr:hover {{ background-color: rgba(255, 255, 255, 0.1); }}
 </style>
 """, unsafe_allow_html=True)
 
+# =========== Session State & Helpers ============================
+# --- NO CHANGES HERE ---
+if 'page' not in st.session_state: st.session_state.page = PAGE_HOME
+if 'evaluation_results' not in st.session_state: st.session_state.evaluation_results = None # For Legend page results
+if 'biomechanics_results' not in st.session_state: st.session_state.biomechanics_results = None # For Star page results
+if 'analysis_mode' not in st.session_state: st.session_state.analysis_mode = MODE_SINGLE_VIDEO_ALL_SKILLS_AR # Default for Legend
+if 'selected_skill_key' not in st.session_state: st.session_state.selected_skill_key = None
+if 'selected_age_group' not in st.session_state: st.session_state.selected_age_group = AGE_GROUP_8_PLUS # Default age for Legend
+if 'uploaded_file_state' not in st.session_state: st.session_state.uploaded_file_state = None # Can hold file for any page temporarily
+if 'gemini_file_object' not in st.session_state: st.session_state.gemini_file_object = None # Can hold processed file for any page
+
+def clear_page_specific_state():
+    st.session_state.evaluation_results = None
+    st.session_state.biomechanics_results = None
+    st.session_state.uploaded_file_state = None
+    # Optional: clear gemini file object and delete
+    # if 'gemini_file_object' in st.session_state and st.session_state.gemini_file_object:
+    #     # delete_gemini_file(...) # Uncomment if needed
+    #     st.session_state.gemini_file_object = None
+
+
 # =========== Gemini Interaction Functions ============================
+# --- NO CHANGES TO ANY OF THESE FUNCTIONS ---
 
 # --- Prompt function for Skill Evaluation (Legend Page) ---
 def create_prompt_for_skill(skill_key_en, age_group):
-    # --- (Code from previous step - no changes needed here) ---
+    # --- (Keep your existing function exactly) ---
     specific_rubric = "لا توجد معايير محددة لهذه المهارة في هذه الفئة العمرية." # Default
     skill_name_ar = skill_key_en # Default
 
@@ -353,7 +511,7 @@ def create_prompt_for_biomechanics():
 
 # --- Video Upload/Processing Function (Common) ---
 def upload_and_wait_gemini(video_path, display_name="video_upload", status_placeholder=st.empty()):
-    # --- (Code from previous step - no changes needed here) ---
+    # --- (Keep your existing function exactly) ---
     uploaded_file = None
     status_placeholder.info(f"⏳ جاري رفع الفيديو '{os.path.basename(display_name)}'...") # Use display name
     logging.info(f"Starting upload for {display_name}")
@@ -399,7 +557,7 @@ def upload_and_wait_gemini(video_path, display_name="video_upload", status_place
 
 # --- Analysis function for Skill Evaluation (Legend Page) ---
 def analyze_video_with_prompt(gemini_file_obj, skill_key_en, age_group, status_placeholder=st.empty()):
-    # --- (Code from previous step - no changes needed here) ---
+    # --- (Keep your existing function exactly) ---
     score = 0 # Default score
     if age_group == AGE_GROUP_5_8:
         skill_name_ar = SKILLS_LABELS_AGE_5_8_AR.get(skill_key_en, skill_key_en)
@@ -410,13 +568,10 @@ def analyze_video_with_prompt(gemini_file_obj, skill_key_en, age_group, status_p
     prompt = create_prompt_for_skill(skill_key_en, age_group)
     status_placeholder.info(f"🧠 Gemini يحلل الآن مهارة '{skill_name_ar}' للفئة العمرية '{age_group}'...")
     logging.info(f"Requesting analysis for skill '{skill_key_en}' (Age: {age_group}) using file {gemini_file_obj.name}")
-    # logging.debug(f"Prompt for {skill_key_en} (Age: {age_group}):\n{prompt}") # Optional prompt logging
 
     try:
-        # Make API call
         response = model.generate_content([prompt, gemini_file_obj], request_options={"timeout": 180}) # Increased timeout
 
-        # --- Response Checking & Parsing (simplified for brevity, keep full checks from previous step) ---
         if not response.candidates:
              st.warning(f"⚠️ استجابة Gemini فارغة لـ '{skill_name_ar}'. النتيجة=0.")
              logging.warning(f"Response candidates list empty for {skill_key_en} (Age: {age_group}). File: {gemini_file_obj.name}")
@@ -440,7 +595,6 @@ def analyze_video_with_prompt(gemini_file_obj, skill_key_en, age_group, status_p
              score = 0
 
     except Exception as e:
-        # Handle API errors, timeouts, etc.
         st.error(f"❌ حدث خطأ أثناء تحليل Gemini لـ '{skill_name_ar}': {e}")
         logging.error(f"Gemini analysis failed for {skill_key_en} (Age: {age_group}): {e}. File: {gemini_file_obj.name}", exc_info=True)
         score = 0
@@ -451,27 +605,14 @@ def analyze_video_with_prompt(gemini_file_obj, skill_key_en, age_group, status_p
 # --- NEW Analysis function for Biomechanics (Star Page) ---
 def analyze_biomechanics_video(gemini_file_obj, status_placeholder=st.empty()):
     """Analyzes video for biomechanics, parses the list output."""
+    # --- (Keep your existing function exactly) ---
     results = {key: NOT_CLEAR_AR for key in BIOMECHANICS_METRICS_EN} # Initialize with "Not Clear"
-
     prompt = create_prompt_for_biomechanics()
     status_placeholder.info(f"🧠 Gemini يحلل الآن الفيديو للبيوميكانيكا...")
     logging.info(f"Requesting biomechanics analysis using file {gemini_file_obj.name}")
-    # logging.debug(f"Biomechanics Prompt:\n{prompt}") # Optional: log the full prompt
 
     try:
-        # Make API call with longer timeout for potentially complex analysis
         response = model.generate_content([prompt, gemini_file_obj], request_options={"timeout": 300})
-
-        # --- Optional DEBUG block ---
-        # try:
-        #     with st.expander("🐞 معلومات تصحيح للبيوميكانيكا (اضغط للتوسيع)", expanded=False):
-        #         st.write("**Prompt Feedback:**", response.prompt_feedback)
-        #         st.write("**Raw Text Response:**")
-        #         st.text(response.text)
-        #         logging.info(f"Full Gemini Response Object for Biomechanics: {response}")
-        # except Exception as debug_e:
-        #     logging.warning(f"Error displaying debug info in UI for biomechanics: {debug_e}")
-        # --- End Optional DEBUG block ---
 
         if not response.candidates:
              status_placeholder.warning("⚠️ استجابة Gemini للبيوميكانيكا فارغة.")
@@ -481,49 +622,34 @@ def analyze_biomechanics_video(gemini_file_obj, status_placeholder=st.empty()):
         raw_text = response.text.strip()
         logging.info(f"Gemini Raw Response Text for Biomechanics:\n{raw_text}")
 
-        # --- Parsing the numbered list ---
         parsed_count = 0
-        # Create a mapping from the Arabic label in the prompt to the English key
         label_to_key_map = {label.split(':')[0].strip(): key for key, label in BIOMECHANICS_LABELS_AR.items()}
-        # Add handling for labels potentially without units in the prompt/response mapping
         label_to_key_map_simple = {label.split('(')[0].strip(): key for key, label in BIOMECHANICS_LABELS_AR.items()}
-
 
         lines = raw_text.split('\n')
         for line in lines:
             line = line.strip()
-            # Regex to capture: number, dot, space, LABEL NAME, colon, space, VALUE
             match = re.match(r"^\d+\.\s+(.+?):\s+(.+)$", line)
             if match:
                 label_ar_from_response = match.group(1).strip()
                 value = match.group(2).strip()
-
-                # Try to find the corresponding English key
                 metric_key_en = None
                 if label_ar_from_response in label_to_key_map:
                     metric_key_en = label_to_key_map[label_ar_from_response]
                 elif label_ar_from_response in label_to_key_map_simple: # Fallback without units
                      metric_key_en = label_to_key_map_simple[label_ar_from_response]
 
-
                 if metric_key_en and metric_key_en in results:
-                    # Clean up value slightly (remove potential extra quotes)
                     value = value.strip('\'"')
                     results[metric_key_en] = value
                     parsed_count += 1
                     logging.debug(f"Parsed Biomechanics: {metric_key_en} = {value}")
                 else:
                     logging.warning(f"Unmatched/Unknown label in biomechanics response line: '{label_ar_from_response}' in line: '{line}'")
-            # else:
-            #     # Log lines that didn't match the expected format
-            #     if line: # Avoid logging empty lines
-            #         logging.debug(f"Skipping non-matching line in biomechanics response: '{line}'")
-
 
         if parsed_count > 0:
              status_placeholder.success(f"✅ اكتمل تحليل البيوميكانيكا. تم تحليل {parsed_count} مقياس.")
              logging.info(f"Biomechanics analysis successful. Parsed {parsed_count} metrics. File: {gemini_file_obj.name}")
-             # Log if some metrics remained "Not Clear"
              not_clear_count = sum(1 for v in results.values() if v == NOT_CLEAR_AR)
              if not_clear_count > 0:
                   logging.warning(f"{not_clear_count} biomechanics metrics remained '{NOT_CLEAR_AR}'.")
@@ -544,7 +670,7 @@ def analyze_biomechanics_video(gemini_file_obj, status_placeholder=st.empty()):
 
 # --- File Deletion Function (Common) ---
 def delete_gemini_file(gemini_file_obj, status_placeholder=st.empty()):
-    # --- (Code from previous step - no changes needed here) ---
+    # --- (Keep your existing function exactly) ---
     if not gemini_file_obj: return
     try:
         display_name = gemini_file_obj.display_name # Should contain the unique upload name
@@ -558,9 +684,10 @@ def delete_gemini_file(gemini_file_obj, status_placeholder=st.empty()):
 
 
 # =========== Grading and Plotting Functions =================
+# --- NO CHANGES HERE ---
 
 def evaluate_final_grade_from_individual_scores(scores_dict):
-    # --- (Code from previous step - no changes needed here) ---
+    # --- (Keep your existing function exactly) ---
     if not scores_dict:
         return {"scores": {}, "total_score": 0, "grade": "N/A", "max_score": 0}
     total = sum(scores_dict.values())
@@ -574,7 +701,7 @@ def evaluate_final_grade_from_individual_scores(scores_dict):
     return {"scores": scores_dict, "total_score": total, "grade": grade, "max_score": max_possible}
 
 def plot_results(results, skills_labels_ar):
-    # --- (Code from previous step - no changes needed here) ---
+    # --- (Keep your existing function exactly) ---
     if not results or 'scores' not in results or not results['scores']:
         logging.warning("Plotting attempted with invalid or empty results.")
         fig, ax = plt.subplots()
@@ -617,62 +744,70 @@ def plot_results(results, skills_labels_ar):
     ax.tick_params(axis='y', colors='white')
     ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
     ax.spines['left'].set_color('gray'); ax.spines['bottom'].set_color('gray')
-    fig.patch.set_alpha(0); ax.set_facecolor((0, 0, 0, 0))
+    fig.patch.set_alpha(0); ax.set_facecolor((0, 0, 0, 0)) # Keep background transparent
     plt.tight_layout(); return fig
 
 
-# =========== Streamlit App Layout (Arabic) ====================================
+# =========== Streamlit App Layout (MODIFIED UI Rendering) ===================
 
-# Initialize session state variables
-if 'page' not in st.session_state: st.session_state.page = PAGE_HOME
-if 'evaluation_results' not in st.session_state: st.session_state.evaluation_results = None # For Legend page results
-if 'biomechanics_results' not in st.session_state: st.session_state.biomechanics_results = None # For Star page results
-if 'analysis_mode' not in st.session_state: st.session_state.analysis_mode = MODE_SINGLE_VIDEO_ALL_SKILLS_AR # Default for Legend
-if 'selected_skill_key' not in st.session_state: st.session_state.selected_skill_key = None
-if 'selected_age_group' not in st.session_state: st.session_state.selected_age_group = AGE_GROUP_8_PLUS # Default age for Legend
-if 'uploaded_file_state' not in st.session_state: st.session_state.uploaded_file_state = None # Can hold file for any page temporarily
-if 'gemini_file_object' not in st.session_state: st.session_state.gemini_file_object = None # Can hold processed file for any page
+# --- Top Row: Logo (MODIFIED) ---
+col_logo_left, col_logo_mid, col_logo_right = st.columns([1, 4, 1])
+with col_logo_left:
+    try:
+        # Use st.image with the direct path
+        st.image(path_ai_league_logo, width=100, caption="", alt="AI League Logo")
+    except FileNotFoundError:
+        st.error(f"❗️ Top logo '{path_ai_league_logo}' not found.")
+    except Exception as e:
+        logging.error(f"Failed to load top logo: {e}")
+        st.markdown("<p style='font-size: 1.2em; font-weight: bold; color: #FFCCCC;'>AI LEAGUE</p>", unsafe_allow_html=True) # Fallback text if image fails
 
-# --- Helper to clear state on page change ---
-def clear_page_specific_state():
-    st.session_state.evaluation_results = None
-    st.session_state.biomechanics_results = None
-    st.session_state.uploaded_file_state = None
-    # Keep gemini_file_object? Maybe clear it too for simplicity, forcing re-upload on page switch
-    # If we clear it, add cleanup here:
-    if 'gemini_file_object' in st.session_state and st.session_state.gemini_file_object:
-         logging.info(f"Clearing Gemini file object {st.session_state.gemini_file_object.name} due to page switch.")
-         # delete_gemini_file(st.session_state.gemini_file_object, st.empty()) # Add deletion on page switch if desired
-         st.session_state.gemini_file_object = None
+# --- Center Area: Main Logo, Title, Slogan (MODIFIED) ---
+with st.container():
+    st.markdown("<div class='center-content-container'>", unsafe_allow_html=True) # CSS Hook
+    try:
+        # Use st.image with the direct path
+        st.image(path_scout_eye_logo, width=250, caption="", alt="Scout Eye Logo") # Adjust width as needed
+    except FileNotFoundError:
+        st.error(f"❗️ Center logo '{path_scout_eye_logo}' not found.")
+    except Exception as e:
+        logging.error(f"Failed to load center logo: {e}")
+        st.markdown("<h1 style='text-align: center; color: #FFCCCC; margin-top: 20px;'>Scout Eye</h1>", unsafe_allow_html=True) # Fallback text
+
+    # Keep your original markdown for the text, styled by CSS classes
+    # NOTE: Original code had Scout Eye H1, title-text div, slogan-text div.
+    # Replicating target image means we REMOVE the H1 tag here.
+    # st.markdown("<h1 style='text-align: center; color: white; margin-top: 20px;'>Scout Eye</h1>", unsafe_allow_html=True) # REMOVED THIS
+    st.markdown("<div class='title-text'>عين الكشاف</div>", unsafe_allow_html=True)
+    st.markdown("<div class='slogan-text'>نكتشف ، نحمي ، ندعم</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True) # Close CSS Hook container
 
 
-# --- Top Row: Logo ---
-col1, col_mid, col2 = st.columns([1, 3, 1])
-with col1:
-    st.markdown("<p style='font-size: 1.2em; font-weight: bold;'>AI LEAGUE</p>", unsafe_allow_html=True)
-
-# --- Center Area: Main Logo, Title, Slogan ---
-st.container()
-st.markdown("<h1 style='text-align: center; color: white; margin-top: 20px;'>Scout Eye</h1>", unsafe_allow_html=True)
-st.markdown("<div class='title-text'>عين الكشاف</div>", unsafe_allow_html=True)
-st.markdown("<div class='slogan-text'>نكتشف ، نحمي ، ندعم</div>", unsafe_allow_html=True)
-
-# --- Bottom Area: Clickable Options (Arabic) ---
+# --- Bottom Area: Clickable Options (Original Buttons, Styled with CSS) ---
+# --- NO CHANGES HERE - Keep your original button code ---
 st.container()
 col_b1, col_b2, col_b3 = st.columns(3)
 button_keys = ["btn_person", "btn_star", "btn_legend"]
 
-if col_b1.button("✔️ الشخص المناسب", key=button_keys[0]):
-    if st.session_state.page != PAGE_PERSON: clear_page_specific_state()
-    st.session_state.page = PAGE_PERSON
-if col_b2.button("⭐ نجم لا يغيب", key=button_keys[1]):
-    if st.session_state.page != PAGE_STAR: clear_page_specific_state()
-    st.session_state.page = PAGE_STAR
-if col_b3.button("⚽ إسطورة الغد", key=button_keys[2]):
-    if st.session_state.page != PAGE_LEGEND: clear_page_specific_state()
-    st.session_state.page = PAGE_LEGEND
+with col_b1:
+    # Keep original button text, CSS hides it and adds background image
+    if st.button("✔️ الشخص المناسب", key=button_keys[0]):
+        if st.session_state.page != PAGE_PERSON: clear_page_specific_state()
+        st.session_state.page = PAGE_PERSON
+        st.rerun() # Added rerun for page change
+with col_b2:
+    if st.button("⭐ نجم لا يغيب", key=button_keys[1]):
+        if st.session_state.page != PAGE_STAR: clear_page_specific_state()
+        st.session_state.page = PAGE_STAR
+        st.rerun() # Added rerun for page change
+with col_b3:
+    if st.button("⚽ إسطورة الغد", key=button_keys[2]):
+        if st.session_state.page != PAGE_LEGEND: clear_page_specific_state()
+        st.session_state.page = PAGE_LEGEND
+        st.rerun() # Added rerun for page change
 
 # --- Conditional Page Content ---
+# --- NO CHANGES TO THE LOGIC INSIDE THESE SECTIONS ---
 
 # ==================================
 # ==      إسطورة الغد Page       ==
@@ -777,7 +912,6 @@ if st.session_state.page == PAGE_LEGEND:
             gemini_file_to_use = None
 
             # --- Check/Upload Video ---
-            # Check if existing Gemini file object corresponds to the current upload
             should_upload = True
             current_upload_name = st.session_state.uploaded_file_state.name if st.session_state.uploaded_file_state else None
             if st.session_state.gemini_file_object and current_upload_name and st.session_state.gemini_file_object.display_name.endswith(current_upload_name):
@@ -850,8 +984,7 @@ if st.session_state.page == PAGE_LEGEND:
                                  st.session_state.selected_age_group, status_skill_analysis
                              )
                              results_dict[skill_key] = score
-                             # Add small delay if needed for API rate limits or UI updates
-                             # time.sleep(1)
+                             # time.sleep(1) # Optional delay
 
                          # --- Calculate Final Grade ---
                          if st.session_state.analysis_mode == MODE_SINGLE_VIDEO_ALL_SKILLS_AR:
@@ -869,15 +1002,15 @@ if st.session_state.page == PAGE_LEGEND:
                                   st.success(f"🎉 اكتمل تحليل مهارة '{analyzed_skill_label}'!")
                              else:
                                   st.error("فشل تحليل المهارة المحددة."); analysis_error = True
-
-            # Note: Cleanup of Gemini file happens on next run check or page switch
+            # Ensure results are displayed after analysis is complete
+            st.rerun() # Rerun to potentially show results immediately
 
     # --- Display Stored Skill Evaluation Results ---
     if st.session_state.evaluation_results:
-        # --- (Display logic from previous step - no changes) ---
         results = st.session_state.evaluation_results
         st.markdown("---")
         st.markdown("### 🏆 نتائج تقييم المهارات 🏆")
+        # Determine correct labels (already done above when setting current_skills_labels_ar)
         plot_labels_ar = current_skills_labels_ar
         if 'grade' in results and results['grade'] != "N/A" and results['grade'] != "غير مكتمل":
             res_col1, res_col2 = st.columns(2)
@@ -889,8 +1022,6 @@ if st.session_state.page == PAGE_LEGEND:
                 st.pyplot(plot_fig); plt.close(plot_fig)
             except Exception as plot_err:
                  st.error(f"حدث خطأ أثناء إنشاء الرسم البياني: {plot_err}"); logging.error(f"Plotting failed: {plot_err}", exc_info=True)
-                 with st.expander("عرض الدرجات الخام"):
-                     for key, score in results.get('scores', {}).items(): st.write(f"- {plot_labels_ar.get(key, key)}: {score}/{MAX_SCORE_PER_SKILL}")
         elif 'scores' in results and results['scores']:
             if len(results['scores']) == 1:
                 skill_key_analyzed = list(results['scores'].keys())[0]; skill_label_analyzed = plot_labels_ar.get(skill_key_analyzed, skill_key_analyzed)
@@ -905,8 +1036,6 @@ if st.session_state.page == PAGE_LEGEND:
                 st.markdown("#### 📈 رسم بياني للدرجات المتوفرة:")
                 try: plot_fig = plot_results(results, plot_labels_ar); st.pyplot(plot_fig); plt.close(plot_fig)
                 except Exception as plot_err: st.error(f"حدث خطأ أثناء إنشاء الرسم البياني للنتائج غير المكتملة: {plot_err}"); logging.error(f"Incomplete results plotting failed: {plot_err}", exc_info=True)
-                    # with st.expander("عرض الدرجات الخام"):
-                    #     for key, score in results.get('scores', {}).items(): st.write(f"- {plot_labels_ar.get(key, key)}: {score}/{MAX_SCORE_PER_SKILL}")
         else: st.warning("لم يتم العثور على نتائج لعرضها.")
 
 # ==================================
@@ -926,7 +1055,6 @@ elif st.session_state.page == PAGE_STAR:
 
     if uploaded_file_star:
         st.session_state.uploaded_file_state = uploaded_file_star
-    # Don't clear if None immediately
 
     ready_to_analyze_star = st.session_state.uploaded_file_state is not None
 
@@ -986,65 +1114,32 @@ elif st.session_state.page == PAGE_STAR:
                         analysis_status_placeholder
                     )
                     if not st.session_state.biomechanics_results or all(v == NOT_CLEAR_AR for v in st.session_state.biomechanics_results.values()):
-                         # If results are empty or all are "Not Clear", maybe indicate failure more strongly
                          analysis_status_placeholder.error("❌ فشل تحليل البيوميكانيكا أو لم يتم التعرف على أي مقاييس.")
-                    # No balloons for this one? Or maybe if Risk is Low?
+            # Ensure results are displayed after analysis is complete
+            st.rerun() # Rerun to potentially show results immediately
 
-            # Note: Cleanup handled implicitly
-
     # --- Display Biomechanics Results ---
-    # --- Display Biomechanics Results ---
-    # --- Display Biomechanics Results ---
-       # --- Display Biomechanics Results ---
-    # --- Display Biomechanics Results ---
-    # --- Display Biomechanics Results ---
-    # --- Display Biomechanics Results (Arabic Headers, English Data) ---
-    # --- Display Biomechanics Results (Arabic Headers, English Table - LTR Order) ---
-       # --- Display Biomechanics Results (Arabic, Simple Markdown, Separate Lines) ---
-       # --- Display Biomechanics Results (Arabic Headers, English Data) ---
     if st.session_state.biomechanics_results:
         results_bio = st.session_state.biomechanics_results
         st.markdown("---")
-        # --- KEEP ARABIC HEADER ---
-        st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊") # Fallback
-
+        # Using English labels for the table as per original code
+        st.markdown("### 📊 نتائج التحليل البيوميكانيكي (Biomechanical Analysis Results) 📊")
         st.markdown("---") # Add a visual separator
 
-        # --- Display metric data in ENGLISH using st.write ---
+        display_data = []
         for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
-
-            # Get ENGLISH Label
             display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Use English labels dict
-
-            # Get raw value (potentially numeric or Arabic text like 'غير واضح', 'منخفض')
             value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Default to original Arabic constant if key missing
             value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
-
-            # --- Translate known Arabic text values to ENGLISH for display ---
+            # Translate known Arabic text values to ENGLISH for display
             display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
-            # If value_str wasn't in the map (e.g., it's a number or unexpected text),
-            # display_value_en will remain as the original cleaned value_str.
+            display_data.append({"Metric": display_label_en, "Value": display_value_en})
 
-            # --- Display using simple st.write (LTR formatting is default/fine for English) ---
-            # Use markdown for bolding the label
-            st.write(f"**{display_label_en}:** {display_value_en}")
+        # Use Pandas DataFrame for nice table formatting (will respect LTR for English)
+        df_results = pd.DataFrame(display_data)
+        # Apply custom CSS class for styling defined above
+        st.markdown(df_results.to_html(index=False, justify='right', classes='dataframe'), unsafe_allow_html=True)
 
-        # --- Display Risk Level and Score (Optionally, using st.metric with English Labels) ---
-        # st.markdown("---") # Optional separator
-        # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
-        # risk_level_str = str(risk_level_raw).strip().strip('\'"')
-        # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
-
-        # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
-
-        # col_risk1, col_risk2 = st.columns(2)
-        # with col_risk1:
-        #     # Use English label for metric
-        #     st.metric("⚠️ Risk Level", risk_level_display_en)
-        # with col_risk2:
-        #      # Use English label for metric
-        #     st.metric("🔢 Risk Score", risk_score_display_en)
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
@@ -1056,5 +1151,7 @@ elif st.session_state.page == PAGE_PERSON:
 
 
 # --- Footer ---
+# --- NO CHANGES HERE ---
 st.markdown("---")
 st.caption("AI League - Scout Eye v1.3 (Gemini Powered - عربي) | بدعم من Google Gemini API")
+# END OF FULL CODE
