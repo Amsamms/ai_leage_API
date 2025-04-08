@@ -974,103 +974,88 @@ elif st.session_state.page == PAGE_STAR:
         st.markdown("---")
         st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊")
 
-        # Pre-reshape Arabic strings that might appear as values
+        # --- Pre-reshape constants (Keep error handling) ---
         try:
             reshaped_not_clear = get_display(arabic_reshaper.reshape(NOT_CLEAR_AR))
             possible_risk_levels_ar = ['منخفض', 'متوسط', 'مرتفع']
             reshaped_risk_levels = {level: get_display(arabic_reshaper.reshape(level)) for level in possible_risk_levels_ar}
-            logging.debug(f"Pre-reshaped 'Not Clear': {reshaped_not_clear}")
-            logging.debug(f"Pre-reshaped Risk Levels: {reshaped_risk_levels}")
+            st.write(f"DEBUG: Pre-reshaped 'غير واضح': -> {reshaped_not_clear} <-") # DEBUG PRINT
+            st.write(f"DEBUG: Pre-reshaped 'منخفض': -> {reshaped_risk_levels.get('منخفض', 'ERROR')} <-") # DEBUG PRINT
         except Exception as e_pre_reshape:
              st.error(f"خطأ في تهيئة النصوص العربية: {e_pre_reshape}")
-             logging.error(f"Error pre-reshaping Arabic constants: {e_pre_reshape}", exc_info=True)
-             # Provide non-reshaped fallbacks if pre-reshaping fails
              reshaped_not_clear = NOT_CLEAR_AR
              reshaped_risk_levels = {level: level for level in possible_risk_levels_ar}
 
-
-        # Use columns for better layout if many metrics
         col_left, col_right = st.columns(2)
         metrics_count = len(BIOMECHANICS_METRICS_EN)
-        mid_point = (metrics_count + 1) // 2 # Split point for columns
+        mid_point = (metrics_count + 1) // 2
+        current_col = col_left
 
-        current_col = col_left # Start with the left column
+        for i, key_en in enumerate(BIOMECHANICS_METRICS_EN):
+            if i >= mid_point: current_col = col_right
 
-        for i, key_en in enumerate(BIOMECHANICS_METRICS_EN): # Iterate in defined order
-
-            if i >= mid_point:
-                current_col = col_right # Switch to right column
-
-            # --- Get and Reshape Label ---
+            # --- Get Label and Value ---
             label_ar = BIOMECHANICS_LABELS_AR.get(key_en, key_en)
-            try:
-                 reshaped_label = get_display(arabic_reshaper.reshape(label_ar))
-            except Exception as e_reshape_lbl:
-                 logging.warning(f"Could not reshape label '{label_ar}': {e_reshape_lbl}")
-                 reshaped_label = label_ar # Fallback
-
-            # --- Get and Reshape Value (if Arabic text) ---
             value_raw = results_bio.get(key_en, NOT_CLEAR_AR)
-            logging.debug(f"Processing metric: {key_en}, Raw value: '{value_raw}' (Type: {type(value_raw)})")
-            display_value = str(value_raw) # Default to string representation
+            value_str = str(value_raw).strip()
 
+            # --- Reshape Label ---
+            try: reshaped_label = get_display(arabic_reshaper.reshape(label_ar))
+            except Exception: reshaped_label = label_ar
+
+            # --- Reshape Value (if Arabic text) ---
+            display_value = value_str # Start with the raw string value
             try:
-                 value_str = str(value_raw).strip()
-                 if value_str == NOT_CLEAR_AR:
-                     display_value = reshaped_not_clear
-                     logging.debug(f"Value matched NOT_CLEAR_AR. Using reshaped: {display_value}")
-                 elif value_str in reshaped_risk_levels: # Check against original Arabic keys
-                     display_value = reshaped_risk_levels[value_str]
-                     logging.debug(f"Value matched risk level '{value_str}'. Using reshaped: {display_value}")
+                 if value_str == NOT_CLEAR_AR: display_value = reshaped_not_clear
+                 elif value_str in reshaped_risk_levels: display_value = reshaped_risk_levels[value_str]
                  elif isinstance(value_str, str) and re.search(r'[\u0600-\u06FF]+', value_str):
-                     logging.debug(f"Value '{value_str}' contains Arabic (and not pre-matched), attempting reshape.")
                      display_value = get_display(arabic_reshaper.reshape(value_str))
-                     logging.debug(f"Reshaped general Arabic string to: {display_value}")
-                 # Else: display_value remains the original string (likely numeric)
-
             except Exception as e_reshape_val:
-                  logging.error(f"Error reshaping/processing value '{value_raw}': {e_reshape_val}", exc_info=True)
-                  # Keep display_value as the original string representation in case of error
+                  logging.error(f"Error reshaping value '{value_raw}': {e_reshape_val}")
+                  # Keep display_value as the original string representation
 
-            # --- Display using st.write with Markdown ---
-            # Use markdown for bold label and clear separation. Ensure strings are passed.
-            current_col.write(f"**{reshaped_label}:** {display_value}")
-            # Add a small divider or extra space if needed between items
-            # current_col.write("---") # Optional divider
+            # --- TRY 1: Direct st.write ( Simplest Case ) ---
+            # current_col.write(f"**{reshaped_label}:** {display_value}")
 
-        # --- Display Risk Level and Score Metrics (Keep previous reshaping logic here) ---
-        st.markdown("---") # Divider before summary metrics
+            # --- TRY 2: st.markdown with forced RTL via Unicode Control Characters (Less Ideal) ---
+            # RLM = '\u200F' # Right-to-Left Mark
+            # html_output_unicode = f'<p style="margin-bottom: 0.5rem;"><strong >{RLM}{reshaped_label}:{RLM}</strong> <span >{RLM}{display_value}{RLM}</span></p>'
+            # current_col.markdown(html_output_unicode, unsafe_allow_html=True)
 
+            # --- TRY 3: st.markdown with explicit HTML dir attribute (From previous attempt) ---
+            html_output_dir = f'<p style="margin-bottom: 0.5rem;"><strong dir="rtl">{reshaped_label}:</strong> <span dir="rtl">{display_value}</span></p>'
+            current_col.markdown(html_output_dir, unsafe_allow_html=True)
+
+
+        # --- Display Risk Level and Score ---
+        st.markdown("---")
+
+        # (Keep the logic for getting/reshaping risk_level_display and risk_score_display)
         risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
         risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        risk_level_display = str(risk_level_raw) # Default
-        risk_score_display = str(risk_score_raw) # Default
-
-        # Reshape risk level value if it's Arabic text
+        risk_level_display = str(risk_level_raw)
+        risk_score_display = str(risk_score_raw)
         try:
             risk_level_str = str(risk_level_raw).strip()
-            if risk_level_str == NOT_CLEAR_AR:
-                risk_level_display = reshaped_not_clear
-            elif risk_level_str in reshaped_risk_levels: # Check against original keys
-                risk_level_display = reshaped_risk_levels[risk_level_str]
+            if risk_level_str == NOT_CLEAR_AR: risk_level_display = reshaped_not_clear
+            elif risk_level_str in reshaped_risk_levels: risk_level_display = reshaped_risk_levels[risk_level_str]
             elif isinstance(risk_level_str, str) and re.search(r'[\u0600-\u06FF]+', risk_level_str):
                  risk_level_display = get_display(arabic_reshaper.reshape(risk_level_str))
-        except Exception as e_metric_reshape:
-            logging.error(f"Error reshaping metric value '{risk_level_raw}': {e_metric_reshape}")
-
-        # Reshape the METRIC LABELS
+        except Exception as e_metric_reshape: logging.error(f"Error reshaping metric value '{risk_level_raw}': {e_metric_reshape}")
         try:
              risk_level_metric_label = get_display(arabic_reshaper.reshape("⚠️ مستوى الخطورة"))
              risk_score_metric_label = get_display(arabic_reshaper.reshape("🔢 درجة الخطورة"))
         except Exception:
-             risk_level_metric_label = "⚠️ مستوى الخطورة"
-             risk_score_metric_label = "🔢 درجة الخطورة"
+             risk_level_metric_label = "⚠️ مستوى الخطورة"; risk_score_metric_label = "🔢 درجة الخطورة"
 
+        # Display risk/score using the most reliable method found above (markdown with dir=rtl)
         col_risk1, col_risk2 = st.columns(2)
         with col_risk1:
-             st.metric(risk_level_metric_label, risk_level_display)
+             html_risk_level = f'<div class="stMetric" style="padding: 15px;"><div data-testid="stMetricLabel" style="font-weight: bold; color: #d8b8d8; margin-bottom: 5px;" dir="rtl">{risk_level_metric_label}</div><div data-testid="metric-value" style="font-size: 2em; font-weight: bold; color: white;" dir="rtl">{risk_level_display}</div></div>'
+             st.markdown(html_risk_level, unsafe_allow_html=True)
         with col_risk2:
-             st.metric(risk_score_metric_label, risk_score_display)
+             html_risk_score = f'<div class="stMetric" style="padding: 15px;"><div data-testid="stMetricLabel" style="font-weight: bold; color: #d8b8d8; margin-bottom: 5px;" dir="rtl">{risk_score_metric_label}</div><div data-testid="metric-value" style="font-size: 2em; font-weight: bold; color: white;" dir="rtl">{risk_score_display}</div></div>'
+             st.markdown(html_risk_score, unsafe_allow_html=True)
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
