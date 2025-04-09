@@ -119,6 +119,47 @@ MODEL_NAME = "models/gemini-1.5-pro" # Make sure this model supports video analy
 MODE_SINGLE_VIDEO_ALL_SKILLS_AR = "تقييم جميع مهارات الفئة العمرية (فيديو واحد)"
 MODE_SINGLE_VIDEO_ONE_SKILL_AR = "تقييم مهارة محددة (فيديو واحد)"
 
+# --- Simplified Biomechanics Metrics (for Star page - NEW) ---
+SIMPLIFIED_BIOMECHANICS_METRICS_EN = [
+    "Coordination_Overall", "Asymmetry_Visible", "Trunk_Posture", "Stride_Impression", "Risk_Impression_Overall"
+]
+# Arabic labels for the new simplified metrics
+SIMPLIFIED_BIOMECHANICS_LABELS_AR = {
+    "Coordination_Overall": "التناسق العام للحركة",
+    "Asymmetry_Visible": "عدم تماثل واضح للحركة",
+    "Trunk_Posture": "وضعية الجذع أثناء الجري",
+    "Stride_Impression": "الانطباع العام عن طول الخطوة",
+    "Risk_Impression_Overall": "الانطباع العام عن خطر الإصابة"
+}
+# English labels for display
+SIMPLIFIED_BIOMECHANICS_LABELS_EN = {
+    "Coordination_Overall": "Overall Coordination",
+    "Asymmetry_Visible": "Visible Asymmetry",
+    "Trunk_Posture": "Trunk Posture during Running",
+    "Stride_Impression": "General Stride Length Impression",
+    "Risk_Impression_Overall": "Overall Injury Risk Impression"
+}
+# Possible simplified values (Arabic for prompt, English for mapping/display)
+SIMPLIFIED_BIO_VALUES_AR = {
+    "Coordination_Overall": ["جيد", "متوسط", "ضعيف"],
+    "Asymmetry_Visible": ["نعم", "لا"],
+    "Trunk_Posture": ["مناسب", "مائل للأمام كثيراً", "مستقيم جداً"],
+    "Stride_Impression": ["مناسبة", "قصيرة", "طويلة"],
+    "Risk_Impression_Overall": ["منخفض", "متوسط", "مرتفع"]
+}
+SIMPLIFIED_BIO_VALUES_MAP_AR_TO_EN = {
+    'جيد': 'Good', 'متوسط': 'Average', 'ضعيف': 'Poor',
+    'نعم': 'Yes', 'لا': 'No',
+    'مناسب': 'Appropriate', 'مائل للأمام كثيراً': 'Excessive Forward Lean', 'مستقيم جداً': 'Too Upright',
+    'مناسبة': 'Appropriate', 'قصيرة': 'Short', 'طويلة': 'Long', # Reusing Appropriate for stride length
+    'منخفض': 'Low', 'مرتفع': 'High', # Medium is already in the other map
+    'غير واضح': NOT_CLEAR_EN # Keep the not clear mapping
+}
+# Add the new map values to the existing one or create a combined one if needed
+# For simplicity, let's assume we'll use SIMPLIFIED_BIO_VALUES_MAP_AR_TO_EN primarily for the Star page now.
+# Ensure NOT_CLEAR_AR maps correctly too.
+SIMPLIFIED_BIO_VALUES_MAP_AR_TO_EN.update(BIO_VALUE_MAP_AR_TO_EN)
+
 # --- Gemini API Configuration ---
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
@@ -438,7 +479,41 @@ def create_prompt_for_biomechanics():
 """
     return prompt
 
+def create_simplified_prompt_for_biomechanics():
+    """Creates a simpler prompt for qualitative biomechanical observations."""
 
+    # Build the descriptions of expected values for the prompt
+    options_desc = []
+    options_desc.append(f"1.  {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Coordination_Overall']}: (اختر من: {', '.join(SIMPLIFIED_BIO_VALUES_AR['Coordination_Overall'])})")
+    options_desc.append(f"2.  {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Asymmetry_Visible']}: (اختر من: {', '.join(SIMPLIFIED_BIO_VALUES_AR['Asymmetry_Visible'])})")
+    options_desc.append(f"3.  {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Trunk_Posture']}: (اختر من: {', '.join(SIMPLIFIED_BIO_VALUES_AR['Trunk_Posture'])})")
+    options_desc.append(f"4.  {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Stride_Impression']}: (اختر من: {', '.join(SIMPLIFIED_BIO_VALUES_AR['Stride_Impression'])})")
+    options_desc.append(f"5.  {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Risk_Impression_Overall']}: (اختر من: {', '.join(SIMPLIFIED_BIO_VALUES_AR['Risk_Impression_Overall'])})")
+
+    options_text = "\n".join(options_desc)
+
+    prompt = f"""
+مهمتك هي تحليل حركة الجري للاعب في الفيديو وتقديم تقييم نوعي مبسط للجوانب التالية.
+ركز على الانطباعات البصرية العامة.
+
+**المطلوب:**
+قدم إجاباتك **كقائمة مرقمة ودقيقة**، مستخدمًا **حصراً** إحدى الكلمات المقترحة لكل بند.
+إذا كان التقييم صعبًا جدًا أو غير ممكن من الفيديو، اكتب القيمة '{NOT_CLEAR_AR}'.
+
+{options_text}
+
+**هام جداً:**
+*   التزم بالتنسيق المطلوب بدقة: رقم، نقطة، مسافة، اسم المقياس بالعربي كما هو مذكور أعلاه، نقطتان، مسافة، القيمة المختارة من القائمة أو '{NOT_CLEAR_AR}'.
+*   لا تقم بتضمين أي نص إضافي أو تفسيرات أو مقدمات أو خواتيم خارج هذه القائمة المرقمة.
+
+**مثال للتنسيق المطلوب:**
+1. {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Coordination_Overall']}: جيد
+2. {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Asymmetry_Visible']}: لا
+3. {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Trunk_Posture']}: مناسب
+4. {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Stride_Impression']}: مناسبة
+5. {SIMPLIFIED_BIOMECHANICS_LABELS_AR['Risk_Impression_Overall']}: منخفض
+"""
+    return prompt
 # --- Video Upload/Processing Function (Common) ---
 def upload_and_wait_gemini(video_path, display_name="video_upload", status_placeholder=st.empty()):
     # --- (Code from previous step - no changes needed here) ---
@@ -535,7 +610,74 @@ def analyze_video_with_prompt(gemini_file_obj, skill_key_en, age_group, status_p
 
     return score
 
+def analyze_simplified_biomechanics_video(gemini_file_obj, status_placeholder=st.empty()):
+    """Analyzes video for simplified qualitative biomechanics."""
+    # Initialize with the new simplified keys
+    results = {key: NOT_CLEAR_AR for key in SIMPLIFIED_BIOMECHANICS_METRICS_EN}
 
+    prompt = create_simplified_prompt_for_biomechanics() # Use the new prompt function
+    status_placeholder.info(f"🧠 Gemini يحلل الآن الفيديو للبيوميكانيكا (تقييم مبسط)...")
+    logging.info(f"Requesting SIMPLIFIED biomechanics analysis using file {gemini_file_obj.name}")
+
+    try:
+        # Make API call (timeout might be shorter now)
+        response = model.generate_content([prompt, gemini_file_obj], request_options={"timeout": 240}) # Adjusted timeout
+
+        if not response.candidates:
+             status_placeholder.warning("⚠️ استجابة Gemini للبيوميكانيكا المبسطة فارغة.")
+             logging.warning(f"Response candidates list empty for simplified biomechanics. File: {gemini_file_obj.name}")
+             return results # Return default "Not Clear" results
+
+        raw_text = response.text.strip()
+        logging.info(f"Gemini Raw Response Text for Simplified Biomechanics:\n{raw_text}")
+
+        # --- Parsing the simplified numbered list ---
+        parsed_count = 0
+        # Create mapping from AR label (from prompt) to EN key (for results dict)
+        label_to_key_map = {label: key for key, label in SIMPLIFIED_BIOMECHANICS_LABELS_AR.items()}
+
+        lines = raw_text.split('\n')
+        for line in lines:
+            line = line.strip()
+            # Regex to capture: number, dot, space, LABEL NAME, colon, space, VALUE
+            # Make label matching more robust by allowing optional trailing characters like '(...)'
+            match = re.match(r"^\d+\.\s+(.+?):\s+(.+)$", line)
+            if match:
+                label_ar_from_response = match.group(1).strip()
+                value_ar = match.group(2).strip().strip('\'"') # Clean the value
+
+                # Find the corresponding English key
+                metric_key_en = label_to_key_map.get(label_ar_from_response)
+
+                if metric_key_en and metric_key_en in results:
+                    # Check if the returned value is one of the expected ones or NOT_CLEAR_AR
+                    expected_values = SIMPLIFIED_BIO_VALUES_AR.get(metric_key_en, []) + [NOT_CLEAR_AR]
+                    if value_ar in expected_values:
+                        results[metric_key_en] = value_ar # Store the Arabic value as received
+                        parsed_count += 1
+                        logging.debug(f"Parsed Simplified Biomechanics: {metric_key_en} = {value_ar}")
+                    else:
+                        logging.warning(f"Unexpected value '{value_ar}' received for metric '{label_ar_from_response}' (Key: {metric_key_en}). Expected one of {expected_values}. Setting to '{NOT_CLEAR_AR}'. Line: '{line}'")
+                        results[metric_key_en] = NOT_CLEAR_AR # Set to Not Clear if value is unexpected
+                else:
+                    logging.warning(f"Unmatched/Unknown label in simplified biomechanics response line: '{label_ar_from_response}' in line: '{line}'")
+
+        if parsed_count > 0:
+             status_placeholder.success(f"✅ اكتمل تحليل البيوميكانيكا المبسط. تم تحليل {parsed_count} ملاحظة.")
+             logging.info(f"Simplified Biomechanics analysis successful. Parsed {parsed_count} metrics. File: {gemini_file_obj.name}")
+             not_clear_count = sum(1 for v in results.values() if v == NOT_CLEAR_AR)
+             if not_clear_count > 0:
+                  logging.warning(f"{not_clear_count} simplified biomechanics metrics remained '{NOT_CLEAR_AR}'.")
+                  status_placeholder.warning(f"⚠️ تم تحليل {parsed_count} ملاحظة، ولكن {not_clear_count} منها لم تكن واضحة أو لم يتم التعرف عليها.")
+        else:
+             status_placeholder.warning("⚠️ لم يتمكن النموذج من تحليل أي ملاحظات بيوميكانيكية مبسطة من الفيديو بالتنسيق المتوقع.")
+             logging.warning(f"Failed to parse any simplified biomechanics metrics from response. Raw text:\n{raw_text}")
+
+    except Exception as e:
+        status_placeholder.error(f"❌ حدث خطأ أثناء تحليل Gemini للبيوميكانيكا المبسطة: {e}")
+        logging.error(f"Gemini simplified biomechanics analysis failed: {e}. File: {gemini_file_obj.name}", exc_info=True)
+
+    return results
 # --- NEW Analysis function for Biomechanics (Star Page) ---
 def analyze_biomechanics_video(gemini_file_obj, status_placeholder=st.empty()):
     """Analyzes video for biomechanics, parses the list output."""
