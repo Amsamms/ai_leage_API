@@ -1212,19 +1212,30 @@ elif st.session_state.page == PAGE_STAR:
                          try: os.remove(local_temp_file_path); logging.info(f"Deleted local temp file: {local_temp_file_path}")
                          except Exception as e_del: logging.warning(f"Could not delete local temp file {local_temp_file_path}: {e_del}")
 
-            # --- Analyze Biomechanics ---
+            ## --- Analyze Biomechanics ---
+            #if not analysis_error and gemini_file_to_use:
+            #    with st.spinner("🔬 Gemini يحلل المقاييس البيوميكانيكية..."):
+            #        analysis_status_placeholder = st.empty()
+            #        st.session_state.biomechanics_results = analyze_biomechanics_video(
+            #            gemini_file_to_use,
+            #            analysis_status_placeholder
+            #        )
+            #        if not st.session_state.biomechanics_results or all(v == NOT_CLEAR_AR for v in st.session_state.biomechanics_results.values()):
+            #             # If results are empty or all are "Not Clear", maybe indicate failure more strongly
+            #             analysis_status_placeholder.error("❌ فشل تحليل البيوميكانيكا أو لم يتم التعرف على أي مقاييس.")
+            #        # No balloons for this one? Or maybe if Risk is Low?
+    # --- Analyze Biomechanics ---
             if not analysis_error and gemini_file_to_use:
-                with st.spinner("🔬 Gemini يحلل المقاييس البيوميكانيكية..."):
+                with st.spinner("🔬 Gemini يحلل الملاحظات البيوميكانيكية المبسطة..."): # Update spinner text
                     analysis_status_placeholder = st.empty()
-                    st.session_state.biomechanics_results = analyze_biomechanics_video(
+                    # CALL THE NEW SIMPLIFIED FUNCTION
+                    st.session_state.biomechanics_results = analyze_simplified_biomechanics_video(
                         gemini_file_to_use,
                         analysis_status_placeholder
                     )
+                    # Keep the error check for empty/unclear results
                     if not st.session_state.biomechanics_results or all(v == NOT_CLEAR_AR for v in st.session_state.biomechanics_results.values()):
-                         # If results are empty or all are "Not Clear", maybe indicate failure more strongly
-                         analysis_status_placeholder.error("❌ فشل تحليل البيوميكانيكا أو لم يتم التعرف على أي مقاييس.")
-                    # No balloons for this one? Or maybe if Risk is Low?
-
+                        analysis_status_placeholder.error("❌ فشل تحليل البيوميكانيكا المبسط أو لم يتم التعرف على أي ملاحظات.")
             # Note: Cleanup handled implicitly
 
     # --- Display Biomechanics Results ---
