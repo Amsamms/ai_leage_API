@@ -11,6 +11,8 @@ import re
 import pandas as pd # Added for better display formatting
 import pickle
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+
 
 # --- Configure Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -199,6 +201,48 @@ def load_pipeline():
     with open("feature_order.pkl", "rb") as f2:
         feature_order = pickle.load(f2)
     return pipeline, feature_order
+
+@st.cache_data
+def load_player_data(file_path="players_data_light-2024_2025.csv"):
+    return pd.read_csv(file_path)
+
+# =====================================
+# The recommendation function
+# =====================================
+def recommend_players(df: pd.DataFrame, position: str, top_n: int = 10) -> pd.DataFrame:
+    """
+    Recommend top N players for a given position based on relevant stats.
+    """
+    from sklearn.preprocessing import MinMaxScaler
+
+    # Position-specific features
+    position_features = {
+        'DF': ['Tkl', 'TklW', 'Int', 'Clr', 'Blocks'],
+        'MF': ['Att', 'Cmp%', 'KP', '1/3', 'PPA', 'PrgP'],
+        'FW': ['Gls', 'Sh', 'SoT', 'xG', 'npxG', 'Succ']
+    }
+
+    # Filter the DataFrame for the chosen position
+    df_pos = df[df['Pos'].str.contains(position)].copy()
+
+    # Ensure the position-specific features exist in the DataFrame
+    features = [f for f in position_features[position] if f in df_pos.columns]
+
+    # Keep only relevant columns (plus basic info)
+    df_pos = df_pos[['Player', 'Squad', 'Age', 'Pos'] + features].dropna()
+
+    # Scale the features
+    scaler = MinMaxScaler()
+    df_pos_scaled = df_pos.copy()
+    df_pos_scaled[features] = scaler.fit_transform(df_pos[features])
+
+    # Compute a simple "score" by summing scaled features
+    df_pos_scaled['Score'] = df_pos_scaled[features].sum(axis=1)
+
+    # Sort in descending order and take top N
+    top_recommendations = df_pos_scaled.sort_values(by='Score', ascending=False).head(top_n)
+
+    return top_recommendations[['Player', 'Squad', 'Age', 'Pos', 'Score']]
 
 # Your main or multi-page logic
 def run_app():
@@ -1125,6 +1169,27 @@ elif st.session_state.page == PAGE_PERSON:
             # Predict
             predicted_pos = pipeline.predict(input_array)[0]
             st.success(f"Predicted position: {predicted_pos}")
+            
+        # === Expander 2: Player Recommendation ===
+    with st.expander("### ⭐️ Recommend Top Players"):
+        st.write("Filter players by position and see the top scorers.")
+
+        # User selects the position
+        position_choice = st.selectbox("Select Position", ["DF", "MF", "FW"])
+        # User chooses how many results to show
+        top_n_choice = st.slider("How many players do you want?", 1, 30, 10)
+
+        if st.button("Recommend"):
+            # Load the player data
+            player_df = load_player_data()
+
+            # Call the recommendation function
+            recommended_df = recommend_players(df=player_df,
+                                                position=position_choice,
+                                                top_n=top_n_choice)
+
+            # Display the result
+            st.dataframe(recommended_df)
     
 
 
