@@ -1121,9 +1121,7 @@ if show_advanced:
         index=default_index
     )
 
-    # Optionally, a "Test" button if you want to test the currently loaded model first
-    if st.button("Test Current Model"):
-        test_gemini_connection()
+
 
     # Button to *switch* the entire app to the newly chosen model
     if st.button("Use This Model"):
@@ -1147,3 +1145,7 @@ if show_advanced:
         except AttributeError:
             # Fall back to the deprecated method if rerun isn't available
             st.experimental_rerun()
+            
+    # Optionally, a "Test" button if you want to test the currently loaded model first
+    if st.button("Test Current Model"):
+        test_gemini_connection()
