@@ -1177,7 +1177,7 @@ elif st.session_state.page == PAGE_PERSON:
         # User selects the position
         position_choice = st.selectbox("Select Position", ["DF", "MF", "FW"])
         # User chooses how many results to show
-        top_n_choice = st.slider("How many players do you want?", 1, 30, 10)
+        top_n_choice = st.slider("How many players do you want?", 1, 30, 5)
 
         if st.button("Recommend"):
             # Load the player data
