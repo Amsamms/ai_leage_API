@@ -9,6 +9,8 @@ from bidi.algorithm import get_display
 import logging
 import re
 import pandas as pd # Added for better display formatting
+import pickle
+import numpy as np
 
 # --- Configure Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -190,6 +192,19 @@ def test_gemini_connection(chosen_model=None):
         st.error(f"❌ Gemini API test failed: {e}")
         logging.error(f"API test failed: {e}", exc_info=True)
         return False
+    
+def load_pipeline():
+    with open("position_model.pkl", "rb") as f:
+        pipeline = pickle.load(f)
+    with open("feature_order.pkl", "rb") as f2:
+        feature_order = pickle.load(f2)
+    return pipeline, feature_order
+
+# Your main or multi-page logic
+def run_app():
+    # Example session state for page navigation
+    if "page" not in st.session_state:
+        st.session_state.page = PAGE_PERSON  # Default page
 
 
 # --- CSS Styling (Remains the same) ---
@@ -1087,6 +1102,30 @@ elif st.session_state.page == PAGE_PERSON:
     st.markdown("---")
     st.markdown("## ✔️ الشخص المناسب في المكان المناسب ✔️")
     st.info("سيتم استخدام Gemini API لتحليل مجموعة بيانات (سيتم تحديدها لاحقاً) في هذه الميزة (قيد التطوير).")
+
+    # 1) Load your model + feature list
+    pipeline, feature_order = load_pipeline()
+
+    # 2) Interactive Position Prediction
+    #    (Use an expander, or just display inline.)
+    with st.expander("### 🔎 توقع المكان المناسب للاعب"):
+        st.write("Enter the following player stats to predict the best-fit position.")
+
+        # Build a dictionary from user inputs
+        user_input = {}
+        for feat in feature_order:
+            user_input[feat] = st.number_input(f"{feat}:", value=0.0)
+
+        # Prediction button
+        if st.button("Predict Position"):
+            # Convert inputs to array in the correct order
+            input_values = [user_input[feat] for feat in feature_order]
+            input_array = np.array(input_values).reshape(1, -1)
+
+            # Predict
+            predicted_pos = pipeline.predict(input_array)[0]
+            st.success(f"Predicted position: {predicted_pos}")
+    
 
 
 # --- Footer ---
