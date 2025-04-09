@@ -1248,49 +1248,95 @@ elif st.session_state.page == PAGE_STAR:
     # --- Display Biomechanics Results (Arabic Headers, English Table - LTR Order) ---
        # --- Display Biomechanics Results (Arabic, Simple Markdown, Separate Lines) ---
        # --- Display Biomechanics Results (Arabic Headers, English Data) ---
+    #if st.session_state.biomechanics_results:
+    #    results_bio = st.session_state.biomechanics_results
+    #    st.markdown("---")
+    #    # --- KEEP ARABIC HEADER ---
+    #    st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊") # Fallback
+
+    #    st.markdown("---") # Add a visual separator
+
+    #    # --- Display metric data in ENGLISH using st.write ---
+    #    for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
+
+    #        # Get ENGLISH Label
+    #        display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Use English labels dict
+
+    #        # Get raw value (potentially numeric or Arabic text like 'غير واضح', 'منخفض')
+    #        value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Default to original Arabic constant if key missing
+    #        value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
+
+    #        # --- Translate known Arabic text values to ENGLISH for display ---
+    #        display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
+    #        # If value_str wasn't in the map (e.g., it's a number or unexpected text),
+    #        # display_value_en will remain as the original cleaned value_str.
+
+    #        # --- Display using simple st.write (LTR formatting is default/fine for English) ---
+    #        # Use markdown for bolding the label
+    #        st.write(f"**{display_label_en}:** {display_value_en}")
+
+    #    # --- Display Risk Level and Score (Optionally, using st.metric with English Labels) ---
+    #    # st.markdown("---") # Optional separator
+    #    # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
+    #    # risk_level_str = str(risk_level_raw).strip().strip('\'"')
+    #    # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
+
+    #    # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
+    #    # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
+
+    #    # col_risk1, col_risk2 = st.columns(2)
+    #    # with col_risk1:
+    #    #     # Use English label for metric
+    #    #     st.metric("⚠️ Risk Level", risk_level_display_en)
+    #    # with col_risk2:
+    #    #      # Use English label for metric
+    #    # --- Display SIMPLIFIED Biomechanics Results (English Labels & Values) ---
     if st.session_state.biomechanics_results:
-        results_bio = st.session_state.biomechanics_results
+        results_bio_simplified = st.session_state.biomechanics_results
         st.markdown("---")
-        # --- KEEP ARABIC HEADER ---
-        st.markdown("### 📊 نتائج التحليل البيوميكانيكي 📊") # Fallback
+        # --- Use Simplified Arabic Header ---
+        st.markdown("### 📊 ملاحظات التحليل البيوميكانيكي المبسط 📊")
 
         st.markdown("---") # Add a visual separator
 
-        # --- Display metric data in ENGLISH using st.write ---
-        for key_en in BIOMECHANICS_METRICS_EN: # Iterate in defined order
+        # Check if results are for the simplified format (e.g., check for a specific key)
+        if "Coordination_Overall" in results_bio_simplified: # Check if it's the new format
+            # --- Display simplified metric data using st.write ---
+            for key_en in SIMPLIFIED_BIOMECHANICS_METRICS_EN: # Iterate in defined order
 
-            # Get ENGLISH Label
-            display_label_en = BIOMECHANICS_LABELS_EN.get(key_en, key_en) # Use English labels dict
+                # Get ENGLISH Label for display
+                display_label_en = SIMPLIFIED_BIOMECHANICS_LABELS_EN.get(key_en, key_en)
 
-            # Get raw value (potentially numeric or Arabic text like 'غير واضح', 'منخفض')
-            value_raw = results_bio.get(key_en, NOT_CLEAR_AR) # Default to original Arabic constant if key missing
-            value_str = str(value_raw).strip().strip('\'"') # Clean the raw value
+                # Get raw Arabic value (e.g., 'جيد', 'نعم', 'غير واضح')
+                value_ar_raw = results_bio_simplified.get(key_en, NOT_CLEAR_AR)
 
-            # --- Translate known Arabic text values to ENGLISH for display ---
-            display_value_en = BIO_VALUE_MAP_AR_TO_EN.get(value_str, value_str)
-            # If value_str wasn't in the map (e.g., it's a number or unexpected text),
-            # display_value_en will remain as the original cleaned value_str.
+                # Translate Arabic value to ENGLISH using the new map
+                display_value_en = SIMPLIFIED_BIO_VALUES_MAP_AR_TO_EN.get(value_ar_raw, value_ar_raw) # Fallback to raw if not in map
 
-            # --- Display using simple st.write (LTR formatting is default/fine for English) ---
-            # Use markdown for bolding the label
-            st.write(f"**{display_label_en}:** {display_value_en}")
+                # Display using simple st.write (LTR formatting is default/fine for English)
+                # Use markdown for bolding the label
+                st.write(f"**{display_label_en}:** {display_value_en}")
 
-        # --- Display Risk Level and Score (Optionally, using st.metric with English Labels) ---
-        # st.markdown("---") # Optional separator
-        # risk_level_raw = results_bio.get("Risk_Level", NOT_CLEAR_AR)
-        # risk_level_str = str(risk_level_raw).strip().strip('\'"')
-        # risk_level_display_en = BIO_VALUE_MAP_AR_TO_EN.get(risk_level_str, risk_level_str)
+            # Optional: Highlight the overall risk impression
+            st.markdown("---")
+            risk_impression_ar = results_bio_simplified.get("Risk_Impression_Overall", NOT_CLEAR_AR)
+            risk_impression_en = SIMPLIFIED_BIO_VALUES_MAP_AR_TO_EN.get(risk_impression_ar, risk_impression_ar)
+            risk_label_en = SIMPLIFIED_BIOMECHANICS_LABELS_EN.get("Risk_Impression_Overall")
 
-        # risk_score_raw = results_bio.get("Risk_Score", NOT_CLEAR_AR)
-        # risk_score_display_en = str(risk_score_raw).strip().strip('\'"') # Usually a number
+            if risk_impression_en == "High":
+                st.error(f"**{risk_label_en}: {risk_impression_en}** ⚠️")
+            elif risk_impression_en == "Medium":
+                st.warning(f"**{risk_label_en}: {risk_impression_en}**")
+            elif risk_impression_en == "Low":
+                st.success(f"**{risk_label_en}: {risk_impression_en}** ✅")
+            else: # Not Clear or other
+                st.info(f"**{risk_label_en}: {risk_impression_en}**")
 
-        # col_risk1, col_risk2 = st.columns(2)
-        # with col_risk1:
-        #     # Use English label for metric
-        #     st.metric("⚠️ Risk Level", risk_level_display_en)
-        # with col_risk2:
-        #      # Use English label for metric
-        #     st.metric("🔢 Risk Score", risk_score_display_en)
+        else:
+            # Fallback or message indicating old/unexpected format if necessary
+            st.warning("تم عرض نتائج بتنسيق قديم أو غير متوقع.")
+            # You might want to add code here to display the old format if you need backward compatibility
+            # Or simply show the raw dictionary: st.write(results_bio_simplified)    #     st.metric("🔢 Risk Score", risk_score_display_en)
 
 # ==================================
 # ==    الشخص المناسب Page (Placeholder) ==
