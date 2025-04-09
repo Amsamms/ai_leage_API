@@ -156,10 +156,10 @@ def load_gemini_model(model_name):
             generation_config=generation_config,
             safety_settings=safety_settings
         )
-        logging.info(f"Gemini Model '{MODEL_NAME}' loaded with MINIMUM safety settings (BLOCK_NONE).")
+        logging.info(f"Gemini Model '{model_name}' loaded with MINIMUM safety settings (BLOCK_NONE).")
         return model
     except Exception as e:
-        st.error(f"❗️ فشل تحميل نموذج Gemini '{MODEL_NAME}': {e}")
+        st.error(f"❗️ فشل تحميل نموذج Gemini '{model_name}': {e}")
         logging.error(f"Gemini model loading failed: {e}")
         return None
 
