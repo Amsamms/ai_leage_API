@@ -1127,9 +1127,23 @@ if show_advanced:
 
     # Button to *switch* the entire app to the newly chosen model
     if st.button("Use This Model"):
-        # Clear the cached model to force reloading with new model name
-        st.cache_resource.clear()
-        # Update the session state
+        # 1. First update the session state
         st.session_state.model_name = chosen_model
-        # Rerun the app
-        st.rerun()
+        
+        # 2. Try the appropriate cache clearing method based on Streamlit version
+        try:
+            # For newer Streamlit versions
+            st.cache_resource.clear()
+        except AttributeError:
+            # For older Streamlit versions
+            try:
+                st.cache.clear()
+            except AttributeError:
+                pass  # If neither works, skip cache clearing
+        
+        # 3. Use the newer rerun method
+        try:
+            st.rerun()
+        except AttributeError:
+            # Fall back to the deprecated method if rerun isn't available
+            st.experimental_rerun()
