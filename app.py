@@ -1101,7 +1101,7 @@ elif st.session_state.page == PAGE_STAR:
 elif st.session_state.page == PAGE_PERSON:
     st.markdown("---")
     st.markdown("## ✔️ الشخص المناسب في المكان المناسب ✔️")
-    st.info("سيتم استخدام Gemini API لتحليل مجموعة بيانات (سيتم تحديدها لاحقاً) في هذه الميزة (قيد التطوير).")
+    st.info("سيتم إستخدام بعض البيانات في معرفة أنسب موقع بالنسبة للاعب")
 
     # 1) Load your model + feature list
     pipeline, feature_order = load_pipeline()
