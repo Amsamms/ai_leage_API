@@ -1127,5 +1127,9 @@ if show_advanced:
 
     # Button to *switch* the entire app to the newly chosen model
     if st.button("Use This Model"):
+        # Clear the cached model to force reloading with new model name
+        st.cache_resource.clear()
+        # Update the session state
         st.session_state.model_name = chosen_model
-        st.experimental_rerun()  # force a reload so the new model is loaded
+        # Rerun the app
+        st.rerun()
